@@ -66,6 +66,8 @@ osm:
   published_at: {rule: snapshot}
   used_for: competitors, anchor tenants, stations, schools; backtest cohort discovery
   min_seconds_between_requests: 5
+  # Snapshot dates fetched: every N months from start, plus today.
+  snapshots: {start: 2019-01-01, every_months: 3}
 
 planning_da:
   title: NSW Planning Portal - Online DA data

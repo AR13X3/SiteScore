@@ -125,11 +125,15 @@ def main() -> None:
     start.add_argument("--no-browser", action="store_true")
     start.set_defaults(fn=cmd_start)
     sub.add_parser("dev", help="run with hot reload").set_defaults(fn=cmd_dev)
-    for name, fn, help_ in [("data", cmd_data, "fetch/refresh datasets"), ("test", cmd_test, "run tests")]:
-        p = sub.add_parser(name, help=help_)
-        p.add_argument("rest", nargs=argparse.REMAINDER)
-        p.set_defaults(fn=fn)
-    args = parser.parse_args()
+    # data/test forward any extra arguments (e.g. `data --mock`, `test -k leakage`).
+    passthrough = {"data": cmd_data, "test": cmd_test}
+    sub.add_parser("data", help="fetch/refresh datasets (extra args go to the pipeline)")
+    sub.add_parser("test", help="run tests (extra args go to pytest)")
+    args, rest = parser.parse_known_args()
+    if args.command in passthrough:
+        args.fn, args.rest = passthrough[args.command], rest
+    elif rest:
+        parser.error(f"unrecognized arguments: {' '.join(rest)}")
     try:
         args.fn(args)
     except subprocess.CalledProcessError as exc:

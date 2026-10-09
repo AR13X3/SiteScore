@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     tfnsw_api_key: str | None = Field(None, validation_alias="TFNSW_API_KEY")
     region: str = Field("parramatta", validation_alias="SITESCORE_REGION")
     offline: bool = Field(False, validation_alias="SITESCORE_OFFLINE")
+    force_mock: bool = Field(False, validation_alias="SITESCORE_FORCE_MOCK")
 
 
 @lru_cache

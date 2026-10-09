@@ -5,7 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from sitescore import __version__
+from sitescore.api.deps import get_store
 from sitescore.config import load_business_types, load_region, load_sources
+from sitescore.datastore import TABLES
 from sitescore.settings import get_settings
 
 router = APIRouter(prefix="/api", tags=["meta"])
@@ -48,5 +50,28 @@ def sources() -> list[dict]:
             "used_for": src.used_for,
             "needs_key": src.needs_key,
             "key_configured": has_key,
+        })
+    return out
+
+
+@router.get("/data/status")
+def data_status() -> list[dict]:
+    """Per table: real or mock, row count, publication range, and why if mock."""
+    store = get_store()
+    catalog = store.catalog()
+    sources = load_sources()
+    out = []
+    for name, spec in TABLES.items():
+        prov = store.provenance(name)
+        entry = catalog.get(name, {}).get(prov or "", {})
+        out.append({
+            "table": name,
+            "source": sources[spec.source].title,
+            "description": spec.description,
+            "provenance": prov,
+            "rows": entry.get("rows"),
+            "published_range": entry.get("published_range"),
+            "note": entry.get("note", ""),
+            "model_visible": spec.model_visible,
         })
     return out

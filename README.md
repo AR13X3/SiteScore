@@ -50,7 +50,26 @@ All sources are official or open data. Details and licences are in [config/sourc
 
 ### No leakage ("as of" dating)
 
-Every stored row records when it was true (`valid_from` / `valid_to`) and when it became public (`published_at`). A model run as of date *D* only sees rows published on or before *D*. For example, Census 2021 describes August 2021 but was published on 28 June 2022, and its employment data on 12 October 2022. Tests enforce this rule.
+Every stored row records when it was true (`valid_from` / `valid_to`) and when it became public (`published_at`). A model run as of date *D* only sees rows published on or before *D*. For example, Census 2021 describes August 2021 but was published on 28 June 2022, and its employment data on 12 October 2022.
+
+Four rules enforce this in code:
+
+1. **Model modules can only read data through `AsOfView`.** A test fails if model code touches the store, files, or the pipeline directly.
+2. **`AsOfView` filters on `published_at` and then re-checks its own output.** Any row dated after *D* raises `LeakageError`.
+3. **Outcome data is never visible to the model.** For example, today's Google ratings can't be read through the view at all.
+4. **Every view logs which tables it read and the newest publication date it used.** Each result can show its data cut-off.
+
+`tests/test_leakage.py` checks these rules, including a property test over 150 random dates. Deleting the filter makes 6 tests fail.
+
+### Mock fallback
+
+Every source has a mock with identical columns and identical dating, generated from one shared synthetic city (`sitescore/pipeline/mock_city.py`). In it, cafés cluster where the jobs are, and weaker locations close sooner. If a real fetch fails, that source falls back to mock and the reason is recorded. `GET /api/data/status` shows real vs mock for each table.
+
+- **First start with no data:** the app generates mock data automatically.
+- **Once real data is fetched:** it stays cached and is preferred over mock.
+- **`SITESCORE_FORCE_MOCK=1`:** forces mock everywhere, as a demo safety switch.
+
+Mock data checks the plumbing, not the model's accuracy. Only a backtest on real data does that.
 
 ## Model
 
