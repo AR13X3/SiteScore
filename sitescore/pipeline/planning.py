@@ -46,6 +46,19 @@ def fetch_applications(url: str, councils: list[str]) -> list[dict]:
     return apps
 
 
+# The Portal fills missing dates with the Unix epoch (1970-01-01); anything this old is
+# a placeholder, not a date (online DAs started decades later).
+EARLIEST_REAL_DATE = "1990-01-01"
+
+
+def first_date(*values: str | None) -> str | None:
+    """The first value that is a real date (placeholders like 1970-01-01 skipped)."""
+    for v in values:
+        if v and str(v)[:10] >= EARLIEST_REAL_DATE:
+            return v
+    return None
+
+
 def applications_to_events(apps: list[dict]) -> pd.DataFrame:
     rows = []
     for a in apps:
@@ -59,11 +72,12 @@ def applications_to_events(apps: list[dict]) -> pd.DataFrame:
             continue
         base = {"da_id": a["PlanningPortalApplicationNumber"], "lon": lon, "lat": lat,
                 "new_dwellings": int(dwellings)}
-        lodged = a.get("LodgementDate") or a.get("SubmissionDate")
+        lodged = first_date(a.get("LodgementDate"), a.get("SubmissionDate"))
         if lodged:
             rows.append({**base, "event": "lodged", "event_date": lodged})
-        if a.get("ApplicationStatus") == "Determined" and a.get("DeterminationDate"):
-            rows.append({**base, "event": "determined", "event_date": a["DeterminationDate"]})
+        determined = first_date(a.get("DeterminationDate"))
+        if a.get("ApplicationStatus") == "Determined" and determined:
+            rows.append({**base, "event": "determined", "event_date": determined})
     df = pd.DataFrame(rows, columns=["da_id", "lon", "lat", "new_dwellings", "event", "event_date"])
     df["event_date"] = pd.to_datetime(df["event_date"].str[:10], errors="coerce")
     return df.dropna(subset=["event_date"]).drop_duplicates(["da_id", "event"])

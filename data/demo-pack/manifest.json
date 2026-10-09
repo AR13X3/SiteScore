@@ -1,0 +1,86 @@
+{
+  "created": "2026-10-10",
+  "tables": {
+    "areas": {
+      "rows": 1120,
+      "published_range": [
+        "2022-06-28",
+        "2022-06-28"
+      ],
+      "source": "ABS Census 2021 General Community Profile (SA1, NSW)",
+      "licence": "CC BY 4.0"
+    },
+    "workers": {
+      "rows": 4551,
+      "published_range": [
+        "2022-10-12",
+        "2022-10-12"
+      ],
+      "source": "ABS Census 2021 Working Population Profile (SA2, NSW)",
+      "licence": "CC BY 4.0"
+    },
+    "station_usage": {
+      "rows": 3276,
+      "published_range": [
+        "2016-09-14",
+        "2026-09-14"
+      ],
+      "source": "Train, Metro and Light Rail Station Entries and Exits (monthly)",
+      "licence": "CC BY 4.0"
+    },
+    "pois": {
+      "rows": 17318,
+      "published_range": [
+        "2019-01-01",
+        "2026-10-10"
+      ],
+      "source": "OpenStreetMap (via Overpass API)",
+      "licence": "ODbL 1.0"
+    },
+    "developments": {
+      "rows": 4574,
+      "published_range": [
+        "2019-07-15",
+        "2026-10-08"
+      ],
+      "source": "NSW Planning Portal - Online DA data",
+      "licence": "CC BY 4.0"
+    },
+    "poi_history": {
+      "rows": 701,
+      "published_range": [
+        "2007-12-30",
+        "2026-10-05"
+      ],
+      "source": "OpenStreetMap element history (OSM API v0.6)",
+      "licence": "ODbL 1.0"
+    },
+    "overture_places": {
+      "rows": 21602,
+      "published_range": [
+        "2026-09-23",
+        "2026-09-23"
+      ],
+      "source": "Overture Maps Places",
+      "licence": "CDLA Permissive 2.0 / ODbL by source (see docs.overturemaps.org)"
+    },
+    "fsq_places": {
+      "rows": 24497,
+      "published_range": [
+        "2025-02-06",
+        "2025-02-06"
+      ],
+      "source": "Foursquare Open Source Places",
+      "licence": "Apache 2.0 (attribution; NOTICE.txt)"
+    },
+    "business_names": {
+      "rows": 8761,
+      "published_range": [
+        "2026-10-10",
+        "2026-10-10"
+      ],
+      "source": "ASIC Business Names Register",
+      "licence": "CC BY 3.0 AU"
+    }
+  }
+}

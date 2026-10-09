@@ -89,6 +89,9 @@ osm:
   # any gaps; cached snapshots are never re-downloaded.
   snapshots: {start: 2019-01-01, every_months: 3, priority_window: [2022-07-01, 2025-03-01]}
   retry_cooldown_seconds: 90
+  # Mirrors can lag behind the main database. A snapshot is only accepted from a
+  # server whose data reaches its date; "today" from one at most this many days behind.
+  max_live_lag_days: 2
 
 osm_history:
   title: OpenStreetMap element history (OSM API v0.6)

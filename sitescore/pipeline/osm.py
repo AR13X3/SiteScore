@@ -5,6 +5,11 @@ queries), so each snapshot is genuinely historical: published_at = the snapshot
 date. Every tag any business profile cares about (competitors and anchors) is
 fetched in one query per snapshot. Responses are cached per date, and a snapshot
 that fails is skipped (the as-of view then falls back to the previous one).
+
+Mirrors can lag: a server whose database stops before the requested date would
+silently return an older map. Each response says how fresh its database is
+(osm3s.timestamp_osm_base), so such answers are rejected (and stale cached ones
+re-fetched) in favour of the next endpoint.
 """
 
 from __future__ import annotations
@@ -80,6 +85,7 @@ class Osm(Adapter):
         endpoints = list(extra["endpoints"])
         pause = float(extra.get("min_seconds_between_requests", 5))
         cooldown = float(extra.get("retry_cooldown_seconds", 90))
+        max_lag = int(extra.get("max_live_lag_days", 2))
         window = extra.get("snapshots", {}).get("priority_window")
         bbox = _padded_bbox(ctx)
 
@@ -89,10 +95,13 @@ class Osm(Adapter):
             failed = []
             for d in pending:
                 path = ctx.raw_dir / "osm" / f"{ctx.region.id}_{d.isoformat()}.json"
+                if path.exists() and not fresh_enough(_read_json(path), d, ctx.today, max_lag):
+                    log.info("OSM snapshot %s: cached copy came from a stale server; re-fetching", d)
+                    path.unlink()
                 cached = path.exists()
                 query = overpass_query(bbox, None if d == ctx.today else d)
                 try:
-                    data = cached_json(path, lambda q=query: _run(endpoints, q))
+                    data = cached_json(path, lambda q=query, d=d: _run(endpoints, q, d, ctx.today, max_lag))
                 except FetchError as exc:
                     log.warning("OSM snapshot %s failed (pass %d): %s", d, attempt, exc)
                     failed.append(d)
@@ -157,7 +166,27 @@ def prioritise(dates: list[dt.date], today: dt.date, window: list | None) -> lis
     return sorted(dates, key=rank)
 
 
-def _run(endpoints: list[str], query: str) -> dict:
+def database_date(data: dict) -> dt.date | None:
+    """How fresh the answering server's copy of OSM was (None if it didn't say)."""
+    stamp_ = (data.get("osm3s") or {}).get("timestamp_osm_base")
+    return pd.Timestamp(stamp_).date() if stamp_ else None
+
+
+def fresh_enough(data: dict, snapshot: dt.date, today: dt.date, max_live_lag_days: int) -> bool:
+    """A dated snapshot needs a database at least that recent; the live one, a recent one."""
+    base = database_date(data)
+    if base is None:
+        return True
+    needed = today - dt.timedelta(days=max_live_lag_days) if snapshot == today else snapshot
+    return base >= needed
+
+
+def _read_json(path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _run(endpoints: list[str], query: str, snapshot: dt.date, today: dt.date,
+         max_lag: int) -> dict:
     """Try each Overpass endpoint in turn (each with its own retries)."""
     last: Exception | None = None
     for url in endpoints:
@@ -167,6 +196,9 @@ def _run(endpoints: list[str], query: str) -> dict:
             remark = data.get("remark", "")
             if "runtime error" in remark or "rate_limited" in remark:
                 raise FetchError(f"{url}: {remark[:200]}")
+            if not fresh_enough(data, snapshot, today, max_lag):
+                raise FetchError(f"{url}: database only up to {database_date(data)}, "
+                                 f"too old for the {snapshot} snapshot")
             return data
         except (FetchError, ValueError) as exc:
             last = exc

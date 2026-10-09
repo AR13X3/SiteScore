@@ -89,7 +89,7 @@ def test_real_data_preferred_unless_forced_mock(tmp_path, ctx):
 def test_ensure_tables_fills_only_gaps(tmp_path, ctx):
     store = DataStore(tmp_path)
     store.write("workers", Broken().mock(ctx)["workers"].iloc[:5], "real")
-    results = ensure_tables(store, ctx)
+    results = ensure_tables(store, ctx, pack_dir=tmp_path / "no-pack")
     assert {r.table for r in results} == set(TABLES) - {"workers"}
     assert store.provenance("workers") == "real"
 

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from sitescore.datastore import TABLES, DataStore
+from sitescore.pipeline import demo_pack
 from sitescore.pipeline.abs_census import AbsCensus
 from sitescore.pipeline.abs_workers import AbsWorkers
 from sitescore.pipeline.base import Adapter, PipelineContext, RunResult, build_context, run_adapter
@@ -36,13 +39,16 @@ def run_all(store: DataStore, ctx: PipelineContext | None = None, *, mock_only: 
     return results
 
 
-def ensure_tables(store: DataStore, ctx: PipelineContext | None = None) -> list[RunResult]:
-    """Generate mock data for any table with no data at all, so the app always starts."""
+def ensure_tables(store: DataStore, ctx: PipelineContext | None = None,
+                  pack_dir: Path = demo_pack.PACK_DIR) -> list[RunResult]:
+    """Fill tables that have no data at all, so the app always starts: first from the
+    committed demo pack (real data), then mock for anything still missing."""
+    results = [RunResult("demo_pack", t, "real", n, "restored from the demo pack")
+               for t, n in demo_pack.restore(store, pack_dir)]
     missing = {t for t in TABLES if not store.has(t)}
     if not missing:
-        return []
+        return results
     ctx = ctx or build_context()
-    results = []
     for adapter in ADAPTERS:
         if missing & set(adapter.tables):
             results += run_adapter(adapter, store, ctx, mock_only=True,

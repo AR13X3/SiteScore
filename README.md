@@ -10,8 +10,10 @@ Requires Python 3.11+ and Node.js 20+.
 
 ```bash
 python run.py install    # one-time: virtualenv, dependencies, frontend build
-python run.py start      # opens http://127.0.0.1:8000
+python run.py start      # opens http://127.0.0.1:8000 (--port to change it)
 ```
+
+A fresh clone runs on **real data straight away, offline**: the repo includes a demo pack (`data/demo-pack/`, a 3 MB snapshot from 10 Oct 2026 of every real table except Google Places), which is loaded on first start. `python run.py data` refreshes everything from the sources.
 
 To use the app (**Compare sites** screen):
 
@@ -54,6 +56,7 @@ Other commands:
 | `python run.py backtest` | Predict past openings with past data and score them against reality |
 | `python run.py backtest --cross-section` | Score every café open today with today's data (not time-safe) |
 | `python run.py dev` | Backend and frontend with hot reload |
+| `python run.py data --make-demo-pack` | Snapshot your current real tables into `data/demo-pack/` (to commit) |
 
 If the repo is inside OneDrive or Dropbox, the virtualenv and raw downloads go to `%LOCALAPPDATA%\SiteScore` instead, so you don't sync about 1 GB of packages. Set `SITESCORE_CACHE_DIR` to choose another location.
 
@@ -92,6 +95,8 @@ All sources are official or open data. Details and licences are in [config/sourc
 
 **OpenStreetMap snapshots are slow.** Each historical snapshot is a heavy query, and public Overpass servers are often overloaded. Snapshots are fetched in priority order: today, then the backtest window, then the rest. Failures are retried once and then skipped. Run `python run.py data --only osm` again later to fill any gaps. The model always uses the latest snapshot on or before the as-of date.
 
+**Lagging mirrors are rejected.** Every Overpass answer reports how current its database is. A snapshot is only accepted from a server whose data reaches the snapshot's date, and today's map only from a server at most 2 days behind. Stale cached snapshots are re-fetched. One mirror had served an October 2026 snapshot from a database that stopped in May 2026; the element histories confirm the replacement matches.
+
 #### Data caveats
 
 - **Planning Portal outcomes:** the Portal reports "Determined" without saying approved or refused, so those dwellings count at a 90% approval rate (in config).
@@ -116,7 +121,7 @@ Four rules enforce this in code:
 
 Every source has a mock with identical columns and identical dating, generated from one shared synthetic city (`sitescore/pipeline/mock_city.py`). In it, cafés cluster where the jobs are, and weaker locations close sooner. If a real fetch fails, that source falls back to mock and the reason is recorded. `GET /api/data/status` shows real vs mock for each table.
 
-- **First start with no data:** the app generates mock data automatically.
+- **First start with no data:** the app loads the demo pack (real data). It generates mock only for tables the pack doesn't have, such as Google Places.
 - **Once real data is fetched:** it stays cached and is preferred over mock.
 - **`SITESCORE_FORCE_MOCK=1`:** forces mock everywhere, as a demo safety switch.
 

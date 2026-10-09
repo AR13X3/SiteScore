@@ -82,11 +82,11 @@ def cmd_start(args: argparse.Namespace) -> None:
     py = require_venv()
     if has_frontend() and not FRONTEND_DIST.exists():
         sh([npm(), "run", "build"], cwd=FRONTEND_DIR)
-    url = f"http://{HOST}:{PORT}"
+    url = f"http://{HOST}:{args.port}"
     if not args.no_browser:
         threading.Timer(2.0, webbrowser.open, [url]).start()
     print(f"SiteScore running at {url}  (Ctrl+C to stop)")
-    sh([py, "-m", "uvicorn", "sitescore.api.main:app", "--host", HOST, "--port", PORT], cwd=ROOT)
+    sh([py, "-m", "uvicorn", "sitescore.api.main:app", "--host", HOST, "--port", args.port], cwd=ROOT)
 
 
 def cmd_dev(_: argparse.Namespace) -> None:
@@ -128,6 +128,7 @@ def main() -> None:
     sub.add_parser("install", help="create virtualenv and install everything").set_defaults(fn=cmd_install)
     start = sub.add_parser("start", help="run the app")
     start.add_argument("--no-browser", action="store_true")
+    start.add_argument("--port", type=int, default=PORT, help=f"default {PORT}")
     start.set_defaults(fn=cmd_start)
     sub.add_parser("dev", help="run with hot reload").set_defaults(fn=cmd_dev)
     # data/test/backtest forward any extra arguments (e.g. `data --mock`, `test -k leakage`).

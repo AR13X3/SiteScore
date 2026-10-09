@@ -13,7 +13,7 @@ from sitescore.model.market import _approved_developments
 from sitescore.pipeline.abs_census import fill_gaps
 from sitescore.pipeline.abs_workers import spread_workers
 from sitescore.pipeline.geocode import normalise_address
-from sitescore.pipeline.osm import filter_statements
+from sitescore.pipeline.osm import filter_statements, fresh_enough
 from sitescore.pipeline.planning import applications_to_events
 from sitescore.pipeline.tfnsw import parse_usage_csv, station_key
 
@@ -63,6 +63,19 @@ def test_planning_applications_become_dated_events():
     assert sorted(zip(df["da_id"], df["event"], strict=True)) == [
         ("PAN-1", "determined"), ("PAN-1", "lodged"), ("PAN-2", "lodged")]
     assert df.loc[df["event"] == "determined", "event_date"].iloc[0] == pd.Timestamp("2023-09-01")
+
+
+def test_placeholder_epoch_dates_are_not_dates():
+    """The Portal fills missing dates with 1970-01-01; that must not become 'always public'."""
+    df = applications_to_events([
+        _app(LodgementDate="1970-01-01T00:00:00", SubmissionDate="2023-01-05"),
+        _app(PlanningPortalApplicationNumber="PAN-9", LodgementDate="1970-01-01",
+             DeterminationDate="1970-01-01"),
+    ])
+    pan1 = df[(df["da_id"] == "PAN-1") & (df["event"] == "lodged")]
+    assert pan1["event_date"].iloc[0] == pd.Timestamp("2023-01-05")  # falls back to submission
+    assert (df["event_date"] >= pd.Timestamp("1990-01-01")).all()
+    assert df[df["da_id"] == "PAN-9"].empty  # no real date at all: no events
 
 
 def _events(rows: list[tuple]) -> pd.DataFrame:
@@ -129,3 +142,15 @@ def test_real_census_dates_from_config():
     src = load_sources()
     assert src["abs_census_gcp"].published_at.date == dt.date(2022, 6, 28)
     assert src["abs_census_wpp"].published_at.date == dt.date(2022, 10, 12)
+
+
+def test_stale_overpass_servers_are_rejected():
+    """A mirror whose database stops before the snapshot date returns an older map."""
+    today = dt.date(2026, 10, 10)
+    lagging = {"osm3s": {"timestamp_osm_base": "2026-05-31T22:37:44Z"}}
+    current = {"osm3s": {"timestamp_osm_base": "2026-10-09T12:05:50Z"}}
+    assert fresh_enough(lagging, dt.date(2023, 7, 1), today, 2)       # history covers 2023
+    assert not fresh_enough(lagging, dt.date(2026, 10, 1), today, 2)  # but not October 2026
+    assert fresh_enough(current, dt.date(2026, 10, 1), today, 2)
+    assert fresh_enough(current, today, today, 2) and not fresh_enough(lagging, today, today, 2)
+    assert fresh_enough({}, today, today, 2)                          # server didn't say
