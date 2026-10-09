@@ -33,14 +33,14 @@ def effective_atv(profile: BusinessProfile, price: float | None = None) -> float
     return profile.spend.avg_transaction_value * ratio ** profile.spend.atv_price_elasticity
 
 
-def compute_spend(catchment: Catchment, fit_mult: np.ndarray, p_own: np.ndarray,
-                  anchor_factor: float, profile: BusinessProfile) -> SpendResult:
-    captured = catchment.weight * fit_mult * p_own * anchor_factor
+def compute_spend(catchment: Catchment, captured: np.ndarray, profile: BusinessProfile,
+                  price: float | None = None) -> SpendResult:
+    """captured: customers won at each catchment point (after fit, share, anchors...)."""
     visits_pts = captured * catchment.visits_per_month
     customers, visits = float(captured.sum()), float(visits_pts.sum())
     cap = profile.spend.capacity_visits_per_month
     capacity_factor = min(1.0, cap / visits) if cap and visits > 0 else 1.0
-    atv = effective_atv(profile)
+    atv = effective_atv(profile, price)
     uncapped = {s: float(visits_pts[catchment.segment == s].sum()) for s in SEGMENTS}
     return SpendResult(
         customers=customers,

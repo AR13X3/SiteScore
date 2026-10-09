@@ -127,16 +127,19 @@ def project_site(result: SiteResult, market: Market, profile: BusinessProfile, c
                  ) -> tuple[list[MonthPoint], LayerResult]:
     n = cfg.horizon_months
     months = month_starts(open_date, n)
-    ramp = ramp_curve(n, profile.dynamics)
+    # Agent-simulated ramp when available (awareness + habits), else the profile curve.
+    ramp = np.array(result.ramp[:n]) if result.ramp else ramp_curve(n, profile.dynamics)
     seasonal = seasonal_factors(months, profile, calendar)
     base = sum(result.segment_visits.get(seg, 0.0) * seasonal[seg] for seg in SEGMENTS)
 
     site: Site = result.site
     xs, ys = project([site.lon], [site.lat], region_crs)
-    anchors = next((layer.factor for layer in result.layers if layer.key == "anchors"), 1.0)
+    factor = {layer.key: layer.factor for layer in result.layers}
+    # New residents get the same anchor boost and agent/price effects as existing ones.
+    uplift = factor.get("anchors", 1.0) * factor.get("behaviour", 1.0) * factor.get("price", 1.0)
     schedule = development_schedule(market, cfg)
     coef = visits_per_new_resident(float(xs[0]), float(ys[0]), schedule, market, profile, cfg,
-                                   anchors)
+                                   uplift)
     residents = new_residents(schedule, months, cfg)
     dev = (coef @ residents) * seasonal["residents"] if len(coef) else np.zeros(n)
 
@@ -180,9 +183,9 @@ def _dynamics_layer(result: SiteResult, revenue: np.ndarray, dev_revenue: np.nda
         for i in top if added[i, -1] > 0.5
     ]
     years = [float(revenue[i:i + 12].sum()) for i in range(0, n, 12)]
-    dyn = profile.dynamics
-    parts = [(f"Ramp-up from {dyn.ramp_start_share:.0%} of mature trade to 90% by month "
-              f"{dyn.ramp_months_to_90pct:g}"),
+    reached = np.flatnonzero(ramp >= 0.9)
+    to_90 = f"90% by month {reached[0] + 1}" if len(reached) else f"{ramp[-1]:.0%} by month {n}"
+    parts = [f"Ramp-up from {ramp[0]:.0%} of mature trade in month 1 to {to_90}",
              f"seasonal low in {cal.month_name[months[low].month]} ({season[low] - 1:+.0%})"]
     if dev_revenue[-1] > 1:
         parts.append(f"{int(in_reach.sum())} approved developments in reach add "

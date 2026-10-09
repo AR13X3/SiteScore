@@ -46,31 +46,39 @@ competitor_attractiveness:
   chain: 1.15
 
 # --- Layer 4: agent-based simulation ----------------------------------------
+# Virtual customers = (demand point, customer type) pairs. Agents choose among
+# nearby stores and "elsewhere" with logit probabilities from
+#   utility = alpha*log(attractiveness) - beta*m_dist*log(distance)
+#             - elasticity*m_price*log(price / reference price)
+#             + quality*m_quality*quality
+# The first two terms are exactly the Huff model; the rest is what agents add.
+# Month by month: awareness of the new store grows along the profile's ramp
+# curve, and out of habit only some customers reconsider where they go each
+# month (the rest repeat last month), so the ramp-up emerges from the simulation.
 abm:
-  n_agents: 4000
-  months: 12              # habits settle within a year; later months reuse month-12 shares
+  enabled: true
+  n_agents: 4000            # target; every demand point gets the same set of customer types
   seed: 42
-  # Multinomial-logit utility weights (per agent, before individual variation).
+  competitor_radius_m: 2000 # stores beyond this from the site barely matter to walkers
   utility:
-    distance_per_km: -3.0
-    price_per_dollar: -0.8
-    quality: 0.9
-    habit: 1.2              # bonus for the store the agent used most recently
-  # Agents differ: each weight is multiplied by a lognormal draw with this sigma.
-  heterogeneity_sigma: 0.35
-  habit_decay: 0.6          # how fast old habits fade each month (0 = never, 1 = instantly)
-  # Share of agents who know the new store exists, by month since opening.
-  awareness: {start: 0.25, months_to_full: 6}
+    quality: 0.9            # per 1 sd of quality advantage (profile our_store.quality)
+  heterogeneity_sigma: 0.35 # agents' distance/price/quality weights vary lognormally
+  # Habit: share of customers who reconsider where they go in a given month.
+  monthly_reconsider_share: 0.5
 
 # --- Layer 5: competitor price response (game theory) -----------------------
+# Incumbents' marginal costs are backed out from today's prices assuming they're
+# already optimal (logit first-order condition). When we open, every player
+# within radius_m re-optimises; rounds repeat until no price moves > tolerance.
 game:
   enabled: true
-  radius_m: 800            # competitors within this distance respond to our opening
-  max_rounds: 40
-  tolerance: 0.01          # stop when no price moves more than this ($)
-  price_step: 0.05         # price grid resolution ($)
-  # 1.0 = competitors fully best-respond each round; lower = sticky prices.
-  response_speed: 0.5
+  radius_m: 800             # competitors within this distance respond to our opening
+  # false: our price stays at the profile's our_price (a business decision) and the
+  # model reports the price it would suggest; true: the model sets it.
+  optimise_our_price: false
+  max_rounds: 60
+  tolerance: 0.005          # $ (in reference-item price units)
+  damping: 0.5              # each round moves prices this far toward the best response
 
 # --- Layer 8: Monte Carlo ----------------------------------------------------
 # Each run samples every parameter below, then reruns the model.
@@ -87,7 +95,8 @@ montecarlo:
     profile.dynamics.ramp_months_to_90pct: {dist: triangular, low: 4, mode: 8, high: 15}
     model.huff.beta:                     {dist: uniform, low: 1.5, high: 2.6}
     model.huff.outside_option.distance_m: {dist: uniform, low: 250, high: 500}
-    model.game.response_speed:           {dist: uniform, low: 0.2, high: 0.9}
+    profile.pricing.price_elasticity:    {dist: normal_rel, sd: 0.15}
+    model.abm.monthly_reconsider_share:  {dist: uniform, low: 0.3, high: 0.7}
 
 # --- Future demand from approved developments --------------------------------
 developments:

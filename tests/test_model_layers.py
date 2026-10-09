@@ -180,8 +180,7 @@ def test_competitor_next_door_takes_share():
 def test_spend_revenue_and_price_effect():
     m = market(workers=points([(50, 0)], [1000]))
     d = compute_demand(0, 0, m, CAFE, CFG)
-    ones = np.ones(len(d.catchment.weight))
-    s = compute_spend(d.catchment, ones, ones * 0.1, 1.0, CAFE)
+    s = compute_spend(d.catchment, d.catchment.weight * 0.1, CAFE)
     assert s.revenue == pytest.approx(s.visits * s.atv)
     pricier = CAFE.model_copy(update={"pricing": CAFE.pricing.model_copy(
         update={"our_price": CAFE.pricing.reference_price * 1.1})})
@@ -193,6 +192,5 @@ def test_capacity_cap_binds():
     d = compute_demand(0, 0, m, CAFE, CFG)
     capped = CAFE.model_copy(update={"spend": CAFE.spend.model_copy(
         update={"capacity_visits_per_month": 1000})})
-    ones = np.ones(len(d.catchment.weight))
-    s = compute_spend(d.catchment, ones, ones * 0.5, 1.0, capped)
+    s = compute_spend(d.catchment, d.catchment.weight * 0.5, capped)
     assert s.visits == pytest.approx(1000) and s.capacity_factor < 1

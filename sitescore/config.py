@@ -112,6 +112,7 @@ class Pricing(Strict):
     our_price: float = Field(gt=0)
     price_range: tuple[float, float]
     unit_cost: float = Field(ge=0)
+    price_elasticity: float = Field(gt=0)  # logit weight on log(price / reference)
 
     @model_validator(mode="after")
     def _in_range(self) -> Pricing:
@@ -228,34 +229,26 @@ class CompetitorAttractiveness(Strict):
 
 
 class Utility(Strict):
-    distance_per_km: float
-    price_per_dollar: float
     quality: float
-    habit: float
-
-
-class Awareness(Strict):
-    start: float = Field(ge=0, le=1)
-    months_to_full: int = Field(ge=1)
 
 
 class AbmCfg(Strict):
-    n_agents: int = Field(ge=100)
-    months: int = Field(ge=1)
+    enabled: bool
+    n_agents: int = Field(ge=10)
     seed: int
+    competitor_radius_m: float = Field(gt=0)
     utility: Utility
     heterogeneity_sigma: float = Field(ge=0)
-    habit_decay: float = Field(ge=0, le=1)
-    awareness: Awareness
+    monthly_reconsider_share: float = Field(gt=0, le=1)
 
 
 class GameCfg(Strict):
     enabled: bool
     radius_m: float = Field(gt=0)
+    optimise_our_price: bool
     max_rounds: int = Field(ge=1)
     tolerance: float = Field(gt=0)
-    price_step: float = Field(gt=0)
-    response_speed: float = Field(gt=0, le=1)
+    damping: float = Field(gt=0, le=1)
 
 
 class MonteCarloCfg(Strict):

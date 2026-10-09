@@ -60,6 +60,7 @@ pricing:
   our_price: 155.00
   price_range: [120.00, 190.00]
   unit_cost: 25.00
+  price_elasticity: 1.3          # subsidised fees make parents less price-sensitive (assumption)
 
 spend:
   avg_transaction_value: 155.00

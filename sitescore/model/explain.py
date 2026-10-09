@@ -2,7 +2,8 @@
 
 Each site's horizon revenue is a product of layer factors:
 
-    total = horizon x demand x fit x anchors x share x spend x capacity x time
+    total = horizon x demand x fit x anchors x share x behaviour x price
+            x spend x capacity x time
 
 Compare every factor with the average candidate (geometric mean across sites).
 In logs the differences add up exactly to log(total / average total), so the
@@ -17,10 +18,12 @@ import math
 
 from sitescore.model.types import Contribution, SiteExplanation, SiteSimulation
 
-ORDER = ["demand", "fit", "anchors", "competition", "spend", "capacity", "time"]
+ORDER = ["demand", "fit", "anchors", "competition", "behaviour", "price", "spend", "capacity",
+         "time"]
 LABELS = {
     "demand": "Demand", "fit": "Demographic fit", "anchors": "Anchors",
-    "competition": "Competition", "spend": "Spend per customer", "capacity": "Capacity",
+    "competition": "Competition", "behaviour": "Customer behaviour", "price": "Price response",
+    "spend": "Spend per customer", "capacity": "Capacity",
     "time": "Ramp-up, seasons & growth",
 }
 PHRASES = {  # (when it helps, when it hurts)
@@ -29,6 +32,8 @@ PHRASES = {  # (when it helps, when it hurts)
     "fit": ("locals who better match the customer profile", "locals who match the profile less well"),
     "anchors": ("more foot traffic from anchor tenants", "less foot traffic from anchor tenants"),
     "competition": ("less competition for its customers", "tougher competition nearby"),
+    "behaviour": ("customers' tastes favouring it", "customers' tastes favouring rivals"),
+    "price": ("milder price cuts by rivals", "rivals cutting prices in response"),
     "spend": ("customers who visit more often", "customers who visit less often"),
     "capacity": ("", "hitting its capacity limit"),
     "time": ("faster growth from new developments and seasons",

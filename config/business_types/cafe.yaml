@@ -85,7 +85,13 @@ pricing:
   reference_price: 5.30          # (assumption) local average
   our_price: 5.30
   price_range: [4.50, 6.50]      # prices the game-theory layer may choose
-  unit_cost: 1.60                # ingredients + cup per reference item (assumption)
+  # Marginal cost per reference item: ingredients, cup, and the barista time
+  # each extra coffee takes (assumption).
+  unit_cost: 2.60
+  # How strongly customers react to price (logit on log price). 2.5 implies
+  # incumbents' marginal costs of ~$2.70 per cup from today's prices,
+  # consistent with unit_cost above (assumption).
+  price_elasticity: 2.5
 
 # --- Layer 7: spend ----------------------------------------------------------------
 spend:
@@ -104,7 +110,10 @@ costs:                           # optional, enables the profit view
 
 # --- Layer 6: time dynamics ----------------------------------------------------------
 dynamics:
-  ramp_start_share: 0.35         # month-1 revenue as a share of mature revenue
+  # How fast locals become aware of the new store: 35% in month 1, 90% by month 8.
+  # With the agent layer on, habits for existing stores slow the revenue ramp
+  # further; with it off, revenue follows this curve directly.
+  ramp_start_share: 0.35
   ramp_months_to_90pct: 8
   # Monthly multipliers (Jan..Dec). Office-heavy areas dip in January.
   seasonality: [0.86, 0.98, 1.03, 0.99, 1.03, 1.00, 0.98, 1.02, 1.01, 1.02, 1.05, 0.95]

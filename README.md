@@ -103,8 +103,21 @@ Each layer is a separate module in `sitescore/model/` with its own tests. Every 
 Mature monthly revenue is **exactly** the product of the layer factors:
 
 ```
-potential customers × demographic fit × anchor boost × competitive share × ($ per customer) × capacity
+potential customers × demographic fit × anchor boost × gravity share
+  × customer behaviour × price response × ($ per customer) × capacity
 ```
+
+**Agents generalise Huff.** An agent is a demand point combined with a customer type. Each agent's choice utility is `α·log(attractiveness) − β·log(distance)` (the Huff model in logit form) plus terms for price, quality and varied tastes. With those extras switched off, the agents reproduce Huff exactly, and a test checks this. The **customer behaviour** factor is therefore only what tastes and quality add.
+
+**Habits shape the ramp-up, not the winner.** Awareness of the new store grows along the profile's ramp curve, and each month only some customers (50%) reconsider where they go. Together these produce the ramp-up curve.
+
+**The price game uses standard industrial-organisation logic.**
+
+1. Each nearby competitor's marginal cost is backed out from today's price, assuming that price is already optimal.
+2. When we open, every competitor within 800 m re-optimises, in damped simultaneous best-response rounds, until prices settle.
+3. The **price response** factor is the change in our share from competitors' new prices.
+
+Our own price stays at the profile's price by default. The model also reports the price it would choose to maximise margin.
 
 So comparing factors between two sites explains exactly why one out-earns the other. Each layer also returns a one-line summary and a detailed breakdown, for example:
 

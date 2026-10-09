@@ -48,6 +48,9 @@ class SiteResult(BaseModel):
     avg_transaction_value: float
     # Mature visits per segment before any capacity cap (time dynamics use these).
     segment_visits: dict[str, float]
+    # Share of mature trade in each month since opening, from the agent simulation
+    # (None when agents are off: the profile's ramp curve is used instead).
+    ramp: list[float] | None = None
     layers: list[LayerResult]
     data_used: list[DataUsed]
 
