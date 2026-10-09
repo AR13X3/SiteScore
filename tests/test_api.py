@@ -67,6 +67,13 @@ def test_backtest_endpoint(client):
     assert r["accuracy"]["n"] == len(r["rows"]) > 0
     assert all(row["data_cutoff"] <= row["as_of"] for row in r["rows"])
     assert client.post("/api/backtest", json={"cohort": "nope"}).status_code == 404
+    assert {o["outcome"] for o in r["ladder"]} >= {"actual_score", "site_churn"}
+
+
+def test_cross_section_endpoint(client):
+    r = client.get("/api/backtest/cross-section").json()
+    assert r["time_safe"] is False and r["n"] == len(r["rows"]) > 0
+    assert client.get("/api/backtest/cross-section?business_type=bowling").status_code == 404
 
 
 def test_unknown_business_type_is_404(client):

@@ -13,7 +13,7 @@ from sitescore.backtest import lifecycle
 from sitescore.backtest.cohort import Business, discover_from_osm
 from sitescore.backtest.metrics import closure_by_third
 from sitescore.backtest.openings import check
-from sitescore.backtest.outcomes import _horizon, _Sources
+from sitescore.backtest.outcomes import OutcomeTables, _horizon
 from sitescore.config import load_backtest_config, load_business_type
 from sitescore.datastore import DataStore
 
@@ -167,7 +167,7 @@ def _src(overture_conf=None, fsq_closed=None):
     fsq = None if fsq_closed is None else pd.DataFrame({
         "name": ["Test Cafe"], "lat": [LAT], "lon": [LON], "date_closed": [pd.Timestamp(fsq_closed)],
         "date_refreshed": [pd.NaT]})
-    return _Sources(pd.DataFrame(), pd.DataFrame(), None, ov, fsq, None)
+    return OutcomeTables(pd.DataFrame(), pd.DataFrame(), None, ov, fsq, None)
 
 
 BIZ = Business("Test Cafe", LAT, LON, dt.date(2023, 6, 1), dt.date(2023, 5, 31))

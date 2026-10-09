@@ -21,6 +21,7 @@ from sitescore.backtest.types import (
     BacktestRow,
     EvidenceOut,
     HorizonOut,
+    OutcomeComparison,
     Skipped,
     SurvivalReport,
     ThirdRow,
@@ -121,6 +122,8 @@ def run_backtest(businesses: list[Business], cohort: str, store: DataStore,
         rows=rows, accuracy=_accuracy(pred[ok], base[ok], actual_scores[ok]),
         survival=_survival([outcomes[_key(p.business)] for p in predictions], pred, base,
                            bt.survival.horizon_months),
+        ladder=_ladder(predictions, [outcomes[_key(p.business)] for p in predictions],
+                       actual_scores),
         opening_checks=dict(Counter(c.verdict for c in checks.values())),
         skipped=skipped, provenance={t: store.provenance(t) for t in TABLES},
         outcome_sources=sources, caveats=CAVEATS,
@@ -168,6 +171,24 @@ def _accuracy(pred, base, actual) -> Accuracy:
         baseline_pairwise_accuracy=metrics.pairwise_accuracy(base, actual)[0],
         baseline_spearman=metrics.spearman(base, actual),
     )
+
+
+def _ladder(predictions, outcomes: list[Outcome], actual_scores: np.ndarray
+            ) -> list[OutcomeComparison]:
+    """Which model layers help, outcome by outcome (time-safe: predictions as of opening)."""
+    scores = metrics.ladder_scores([p.layers for p in predictions])
+    h = [o.horizon for o in outcomes]
+    survived = np.array([{"survived": 1.0, "closed": 0.0}.get(x.status, np.nan) if x else np.nan
+                         for x in h])
+    churn = np.array([-x.site_closures if x else np.nan for x in h], float)
+    candidates = [
+        ("actual_score", "Combined actual-performance score", actual_scores),
+        ("survival_18m", "Survived 18 months (vs closed)", survived),
+        ("site_churn", "Fewer café closures at the spot since 2019", churn),
+    ]
+    return [OutcomeComparison(**metrics.compare_outcome(key, label, scores, y,
+                                                        "too few businesses with this outcome"))
+            for key, label, y in candidates]
 
 
 def _survival(outcomes: list[Outcome], pred: np.ndarray, base: np.ndarray,

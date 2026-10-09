@@ -2,8 +2,22 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 from scipy.stats import spearmanr
+
+# Nested versions of the model, each adding layers to the one before. Revenue is an
+# exact product of layer factors, so each rung is the model with the later layers
+# switched off (e.g. "+ competition" is plain Huff, before agents and prices).
+LADDER: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("demand", "Foot traffic only", ("demand",)),
+    ("location", "+ demographic fit and anchors", ("fit", "anchors")),
+    ("competition", "+ competition (Huff)", ("competition",)),
+    ("agents", "+ customer agents", ("behaviour",)),
+    ("price", "+ competitors' price response", ("price",)),
+    ("full", "Full model (+ spend, capacity)", ("spend", "capacity")),
+)
 
 
 def pairwise_accuracy(pred: np.ndarray, actual: np.ndarray) -> tuple[float | None, int]:
@@ -12,16 +26,15 @@ def pairwise_accuracy(pred: np.ndarray, actual: np.ndarray) -> tuple[float | Non
     Only pairs whose actual outcomes differ count. 0.5 = coin flip.
     """
     pred, actual = np.asarray(pred, float), np.asarray(actual, float)
-    good, pairs = 0.0, 0
-    for i in range(len(pred)):
-        for j in range(i + 1, len(pred)):
-            a = np.sign(actual[i] - actual[j])
-            if a == 0:
-                continue
-            pairs += 1
-            p = np.sign(pred[i] - pred[j])
-            good += 1.0 if p == a else 0.5 if p == 0 else 0.0
-    return (good / pairs if pairs else None), pairs
+    upper = np.triu_indices(len(pred), k=1)
+    a = np.sign(actual[:, None] - actual[None, :])[upper]
+    p = np.sign(pred[:, None] - pred[None, :])[upper]
+    differ = a != 0
+    pairs = int(differ.sum())
+    if not pairs:
+        return None, 0
+    good = (p[differ] == a[differ]).sum() + 0.5 * (p[differ] == 0).sum()
+    return float(good / pairs), pairs
 
 
 def spearman(pred: np.ndarray, actual: np.ndarray) -> float | None:
@@ -77,3 +90,69 @@ def closure_by_third(pred: np.ndarray, status: np.ndarray, failure: np.ndarray,
             "mean_site_closures": float(site_closures[idx].mean()) if len(idx) else None,
         })
     return rows
+
+
+def ladder_scores(layers: list[dict[str, float]]) -> dict[str, np.ndarray]:
+    """Each rung's score per business: the running product of its layer factors."""
+    out, running = {}, np.ones(len(layers))
+    for key, _, keys in LADDER:
+        running = running * np.array([math.prod(lay.get(k, 1.0) for k in keys) for lay in layers])
+        out[key] = running
+    return out
+
+
+def ladder_comparison(scores: dict[str, np.ndarray], outcome: np.ndarray, n_boot: int = 500,
+                      seed: int = 0) -> list[dict]:
+    """How well each rung ranks an outcome (higher = better), with 90% bootstrap
+    intervals for its Spearman and for its gain over foot traffic only.
+
+    The intervals resample businesses, so they show how much a result could move
+    with a different sample of the same size; they say nothing about bias.
+    """
+    ok = ~np.isnan(np.asarray(outcome, float))
+    y = np.asarray(outcome, float)[ok]
+    n = len(y)
+    boot = np.random.default_rng(seed).integers(0, n, size=(n_boot, n)) if n >= 10 else None
+    base = scores[LADDER[0][0]][ok]
+    base_boot = _boot_spearman(base, y, boot)
+    rows = []
+    for key, label, _ in LADDER:
+        s = scores[key][ok]
+        pw, pairs = pairwise_accuracy(s, y)
+        rho_boot = _boot_spearman(s, y, boot)
+        rows.append({
+            "key": key, "label": label, "n": n, "pairs": pairs, "pairwise_accuracy": pw,
+            "spearman": spearman(s, y),
+            "spearman_ci": _interval(rho_boot),
+            "gain_ci": None if key == LADDER[0][0] else _interval(rho_boot - base_boot),
+        })
+    return rows
+
+
+def _boot_spearman(s: np.ndarray, y: np.ndarray, boot: np.ndarray | None) -> np.ndarray:
+    if boot is None:
+        return np.array([])
+    return np.array([spearman(s[i], y[i]) if np.ptp(y[i]) and np.ptp(s[i]) else np.nan
+                     for i in boot], dtype=float)
+
+
+def _interval(draws: np.ndarray) -> tuple[float, float] | None:
+    draws = draws[~np.isnan(draws)]
+    if len(draws) < 50:
+        return None
+    lo, hi = np.percentile(draws, [5, 95])
+    return float(lo), float(hi)
+
+
+def compare_outcome(key: str, label: str, scores: dict[str, np.ndarray],
+                    outcome: np.ndarray | None, missing: str) -> dict:
+    """The ladder against one outcome, or why it can't be compared (OutcomeComparison)."""
+    y = None if outcome is None else np.asarray(outcome, float)
+    ok = np.zeros(0, bool) if y is None else ~np.isnan(y)
+    if y is None or ok.sum() < 3:
+        return {"outcome": key, "label": label, "available": False, "note": missing, "steps": []}
+    if np.ptp(y[ok]) == 0:
+        return {"outcome": key, "label": label, "available": False,
+                "note": "no variation in this outcome", "steps": []}
+    return {"outcome": key, "label": label, "available": True, "note": "",
+            "steps": ladder_comparison(scores, y)}

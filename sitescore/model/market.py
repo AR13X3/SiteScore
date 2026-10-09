@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, replace
 
 import numpy as np
 import pandas as pd
@@ -48,6 +48,10 @@ class Venues:
     def __len__(self) -> int:
         return len(self.ids)
 
+    def without(self, ids: set[str]) -> Venues:
+        keep = ~np.isin(self.ids, list(ids))
+        return Venues(*(getattr(self, f.name)[keep] for f in fields(self)))
+
 
 @dataclass
 class Market:
@@ -68,6 +72,12 @@ class Market:
     def segment(self, name: str) -> PointSet:
         return {"residents": self.residents, "workers": self.workers,
                 "commuters": self.commuters}[name]
+
+    def without(self, osm_ids: set[str]) -> Market:
+        """The same market minus some venues, e.g. an existing café scored against its
+        rivals but not itself (same as building it with exclude_osm_ids, but cheap)."""
+        return replace(self, competitors=self.competitors.without(osm_ids),
+                       anchors=self.anchors.without(osm_ids))
 
 
 def build_market(view: AsOfView, profile: BusinessProfile, cfg: ModelConfig, region: Region,

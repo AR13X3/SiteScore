@@ -33,6 +33,7 @@ Other commands:
 | `python run.py data` | Fetch and process all data sources. Any source that fails falls back to mock data. |
 | `python run.py test` | Run the test suite |
 | `python run.py backtest` | Predict past openings with past data and score them against reality |
+| `python run.py backtest --cross-section` | Score every café open today with today's data (not time-safe) |
 | `python run.py dev` | Backend and frontend with hot reload |
 
 If the repo is inside OneDrive or Dropbox, the virtualenv and raw downloads go to `%LOCALAPPDATA%\SiteScore` instead, so you don't sync about 1 GB of packages. Set `SITESCORE_CACHE_DIR` to choose another location.
@@ -251,6 +252,50 @@ That leaves 29 cafés: 18 confirmed new (8 of them took over another café's spo
 - **The combined performance score is not informative yet.** Without Google it is mostly the "still trading" vote, which barely varies among open cafés.
 
 The missing ingredient is still a performance measure for open cafés. Adding `GOOGLE_PLACES_API_KEY` and running `python run.py data --only google_places` adds reviews per month and rating (about 300 requests, capped in `config/sources.yaml`, and likely inside Google's free monthly allowance).
+
+### Which layers help? (layer by layer)
+
+Revenue is an exact product of layer factors, so switching later layers off gives a ladder of nested models. Each rung is scored against every outcome, with a 90% bootstrap interval. The "gain" is that rung's Spearman minus foot traffic only.
+
+| Rung | Layers |
+|---|---|
+| Foot traffic only | demand (this is also the baseline) |
+| + demographic fit and anchors | × fit × anchors |
+| + competition (Huff) | × gravity share |
+| + customer agents | × customer behaviour |
+| + competitors' price response | × price response |
+| Full model | × $ per customer × capacity |
+
+The backtest report and the cross-section below both include it.
+
+### Cross-section: today's cafés (NOT time-safe)
+
+```bash
+python run.py backtest --cross-section    # also GET /api/backtest/cross-section
+```
+
+Every independent café on today's map (186 in Parramatta) is scored with today's data, against today's market with itself removed. The scores are then compared with today's outcomes:
+- Google reviews per month (needs the key)
+- Google review count
+- site churn
+
+The sample is about six times the genuine openings. But it is **not time-safe**: today's map already reflects which cafés succeeded (rivals cluster near busy spots, and weak cafés have closed), so it measures association, not prediction. The report and the API mark it `time_safe: false`.
+
+**Results so far (10 Oct 2026, no Google).** Spearman with "fewer café closures at the spot since 2019", with 90% intervals:
+
+| Rung | Cross-section, 186 cafés | Backtest, 29 cafés (time-safe) |
+|---|---|---|
+| Foot traffic only | 0.03 [−0.06, 0.13] | 0.09 [−0.24, 0.36] |
+| + fit and anchors | 0.03 | 0.14 |
+| + competition (Huff) | 0.08 | 0.39 [0.11, 0.62] |
+| + customer agents | 0.07 | 0.35 |
+| + price response | 0.07 | 0.35 |
+| Full model | 0.08 [−0.05, 0.20] | 0.27 [−0.01, 0.51] |
+
+**No layer has a gain over foot traffic that clears the noise.** Every gain interval includes or touches zero. In the small time-safe cohort, competition looks helpful, but that cohort's churn is entirely its 8 takeover spots. In the six-times-larger cross-section, the effect disappears. Site churn is a blunt outcome: most spots have none.
+
+On the mock city, where reviews come from a known "true" performance, the same pipeline recovers the planted signal (Spearman ≈ 0.36 with reviews per month). The comparison works; the real-data outcome it needs is Google reviews.
+
 
 ## Configuration
 

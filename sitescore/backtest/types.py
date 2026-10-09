@@ -99,6 +99,27 @@ class SurvivalReport(BaseModel):
     baseline_site_churn_auc: float | None
 
 
+class LadderStep(BaseModel):
+    """One rung of the model (layers switched on up to here) against one outcome."""
+
+    key: str
+    label: str
+    n: int
+    pairs: int
+    pairwise_accuracy: float | None             # pairs ordered like reality (0.5 = chance)
+    spearman: float | None
+    spearman_ci: tuple[float, float] | None     # 90% bootstrap interval
+    gain_ci: tuple[float, float] | None         # Spearman minus foot traffic only, 90% interval
+
+
+class OutcomeComparison(BaseModel):
+    outcome: str
+    label: str
+    available: bool
+    note: str
+    steps: list[LadderStep]
+
+
 class Skipped(BaseModel):
     name: str
     reason: str
@@ -112,8 +133,40 @@ class BacktestResult(BaseModel):
     rows: list[BacktestRow]
     accuracy: Accuracy
     survival: SurvivalReport
+    ladder: list[OutcomeComparison]        # which layers help, outcome by outcome
     opening_checks: dict[str, int]         # verdict counts over the discovered cohort
     skipped: list[Skipped]
     provenance: dict[str, str | None]
     outcome_sources: list[str]
+    caveats: list[str]
+
+
+# --- Cross-section (today's cafés, today's data: not time-safe) ---------------------------
+
+
+class CrossSectionRow(BaseModel):
+    name: str
+    osm_id: str
+    lat: float
+    lon: float
+    first_mapped: dt.date | None
+    predicted_rank: int
+    mature_monthly: float
+    layers: dict[str, float]
+    reviews: int | None
+    reviews_per_month: float | None   # reviews / months since first known (6-120)
+    rating: float | None
+    age_months: float | None
+    site_closures: int                # other cafés that closed at this spot since 2019
+
+
+class CrossSectionResult(BaseModel):
+    business_type: str
+    run_on: dt.date
+    as_of: dt.date
+    time_safe: bool = False
+    n: int
+    rows: list[CrossSectionRow]
+    outcomes: list[OutcomeComparison]
+    provenance: dict[str, str | None]
     caveats: list[str]

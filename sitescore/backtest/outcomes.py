@@ -137,7 +137,7 @@ class Outcome:
 
 
 @dataclass
-class _Sources:
+class OutcomeTables:
     """Outcome tables that describe the same world as the map (real with real)."""
 
     pois: pd.DataFrame
@@ -148,7 +148,7 @@ class _Sources:
     names: pd.DataFrame | None
 
     @classmethod
-    def load(cls, store: DataStore) -> _Sources:
+    def load(cls, store: DataStore) -> OutcomeTables:
         pois = store.read("pois")
         world = store.provenance("pois")
 
@@ -172,7 +172,7 @@ def observe(businesses: list[Business], store: DataStore, today: dt.date,
     """
     w = {"google": 3.0, "osm_closed": 2.0, "osm_open": 1.0, "overture": 1.0,
          "foursquare": 1.0, "asic": 0.75, **(weights or {})}
-    src = _Sources.load(store)
+    src = OutcomeTables.load(store)
     history = src.pois.sort_values("version").groupby("osm_id")
     out = {}
     for b in businesses:
@@ -187,7 +187,7 @@ def observe(businesses: list[Business], store: DataStore, today: dt.date,
             known = [h for h in hours if h is not None]
             if len(known) >= 2:
                 hours_first, hours_latest = known[0], known[-1]
-        place = _find_place(b, src.places)
+        place = find_place(b, src.places)
         evidence = [_aged(e, today, half_life_months) for e in (
             _osm_fate(fate, src, w["osm_open"], w["osm_closed"]) if fate
             else _osm(b, src, history, w["osm_open"], w["osm_closed"]),
@@ -218,7 +218,7 @@ def observe(businesses: list[Business], store: DataStore, today: dt.date,
     return out
 
 
-def _horizon(b: Business, fate: Fate | None, place: pd.Series | None, src: _Sources,
+def _horizon(b: Business, fate: Fate | None, place: pd.Series | None, src: OutcomeTables,
              today: dt.date, cfg: SurvivalCfg) -> Horizon:
     """Closed within cfg.horizon_months of opening? Strong evidence only.
 
@@ -304,7 +304,7 @@ def _vote(evidence: list[Evidence]) -> tuple[bool | None, float | None]:
     return (None if score == 0 else score > 0), score
 
 
-def _osm(b: Business, src: _Sources, history, w_open: float, w_closed: float
+def _osm(b: Business, src: OutcomeTables, history, w_open: float, w_closed: float
          ) -> Evidence | None:
     if not b.osm_id or b.osm_id not in history.groups:
         return None
@@ -323,7 +323,7 @@ def _osm(b: Business, src: _Sources, history, w_open: float, w_closed: float
                     + (f" (name now '{row['name']}')" if renamed else ""), as_of)
 
 
-def _osm_fate(fate: Fate, src: _Sources, w_open: float, w_closed: float) -> Evidence:
+def _osm_fate(fate: Fate, src: OutcomeTables, w_open: float, w_closed: float) -> Evidence:
     """OSM's view from the business's lifecycle (element history when available).
     Either way it's what today's map says, so it's dated today for ageing."""
     today = src.pois["version"].max().date()
@@ -409,7 +409,7 @@ def _asic(b: Business, names: pd.DataFrame | None, weight: float,
                     pd.Timestamp(row["version"]).date())
 
 
-def _find_place(b: Business, places: pd.DataFrame | None) -> pd.Series | None:
+def find_place(b: Business, places: pd.DataFrame | None) -> pd.Series | None:
     """The business's own Google record. Matching the OSM id isn't enough on its own:
     if the shop was replaced, that record describes the new occupant."""
     if places is None:

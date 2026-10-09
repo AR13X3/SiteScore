@@ -15,8 +15,9 @@ from sitescore.backtest.cohort import (
     link_osm_ids,
     load_csv,
 )
+from sitescore.backtest.crosssection import cross_section
 from sitescore.backtest.runner import run_backtest
-from sitescore.backtest.types import BacktestResult
+from sitescore.backtest.types import BacktestResult, CrossSectionResult
 from sitescore.config import (
     load_backtest_config,
     load_business_type,
@@ -53,4 +54,13 @@ def backtest(cohort: str, store: DataStore, business_type: str = "cafe",
                         today or dt.date.today(), lifecycles)  # noqa: DTZ011
 
 
-__all__ = ["OSM_COHORT", "BacktestResult", "Business", "backtest", "load_cohort"]
+def cross_section_report(store: DataStore, business_type: str = "cafe",
+                         today: dt.date | None = None) -> CrossSectionResult:
+    """Today's cafés scored with today's data (not time-safe; see crosssection.py)."""
+    profile, bt = load_business_type(business_type), load_backtest_config()
+    return cross_section(store, profile, load_model_config(), load_region(), bt,
+                         today or dt.date.today())  # noqa: DTZ011
+
+
+__all__ = ["OSM_COHORT", "BacktestResult", "Business", "CrossSectionResult", "backtest",
+           "cross_section_report", "load_cohort"]
