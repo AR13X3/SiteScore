@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from sitescore import __version__
-from sitescore.api import routes_meta
+from sitescore.api import routes_meta, routes_model
 from sitescore.api.deps import get_store
 from sitescore.config import load_business_types, load_model_config, load_region
 from sitescore.paths import FRONTEND_DIST
@@ -21,19 +21,21 @@ log = logging.getLogger("sitescore")
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Validate all config up front so a bad YAML edit fails immediately.
     load_model_config()
     load_business_types()
     load_region()
     # First run with no data yet: generate mock tables so the demo always works.
-    for r in ensure_tables(get_store()):
+    store = app.dependency_overrides.get(get_store, get_store)()
+    for r in ensure_tables(store):
         log.warning("No data for '%s'; generated mock (%d rows)", r.table, r.rows)
     yield
 
 
 app = FastAPI(title="SiteScore", version=__version__, lifespan=lifespan)
 app.include_router(routes_meta.router)
+app.include_router(routes_model.router)
 
 if FRONTEND_DIST.exists():
     app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")

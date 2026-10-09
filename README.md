@@ -75,6 +75,19 @@ Mock data checks the plumbing, not the model's accuracy. Only a backtest on real
 
 Each layer is a separate module in `sitescore/model/` with its own tests. Every assumption is in `config/`.
 
+Mature monthly revenue is **exactly** the product of the layer factors:
+
+```
+potential customers × demographic fit × anchor boost × competitive share × ($ per customer) × capacity
+```
+
+So comparing factors between two sites explains exactly why one out-earns the other. Each layer also returns a one-line summary and a detailed breakdown, for example:
+
+- which demographic features help or hurt
+- which competitors take the most local demand
+
+To try it, start the app and open `http://127.0.0.1:8000/docs`, then call `POST /api/evaluate` with up to 5 sites and an optional `as_of` date.
+
 1. **Demand:** residents, workers and commuters within each segment's walking catchment, weighted by time of day.
 2. **Fit:** local demographics against the business type's customer profile. Weights are in YAML.
 3. **Competition:** Huff gravity model across all competitors, plus an "elsewhere" option.

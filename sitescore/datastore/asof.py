@@ -67,8 +67,8 @@ class AsOfView:
             newest = df["version"].max()
             df = df[df["version"] == newest]
             version = newest.date()
-        df = df[(df["valid_from"] <= self._cutoff)
-                & (df["valid_to"].isna() | (df["valid_to"] > self._cutoff))]
+        # Knowledge is governed by published_at alone. Past records (e.g. last
+        # year's patronage) stay visible; which periods matter is the model's call.
 
         # Belt and braces: re-check the invariant on what we're about to return.
         if (df["published_at"] > self._cutoff).any():

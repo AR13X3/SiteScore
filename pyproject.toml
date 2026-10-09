@@ -34,6 +34,10 @@ include = ["sitescore*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+filterwarnings = [
+    # Third-party: Starlette's TestClient nags about its httpx backend.
+    "ignore:Using `httpx` with `starlette.testclient`",
+]
 
 [tool.ruff]
 line-length = 100

@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from typing import Annotated
+
+from fastapi import APIRouter, Depends
 
 from sitescore import __version__
 from sitescore.api.deps import get_store
 from sitescore.config import load_business_types, load_region, load_sources
-from sitescore.datastore import TABLES
+from sitescore.datastore import TABLES, DataStore
 from sitescore.settings import get_settings
 
 router = APIRouter(prefix="/api", tags=["meta"])
+StoreDep = Annotated[DataStore, Depends(get_store)]
 
 
 @router.get("/health")
@@ -55,9 +58,8 @@ def sources() -> list[dict]:
 
 
 @router.get("/data/status")
-def data_status() -> list[dict]:
+def data_status(store: StoreDep) -> list[dict]:
     """Per table: real or mock, row count, publication range, and why if mock."""
-    store = get_store()
     catalog = store.catalog()
     sources = load_sources()
     out = []

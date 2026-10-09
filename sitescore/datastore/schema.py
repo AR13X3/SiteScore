@@ -4,9 +4,11 @@ Every source adapter (real or mock) must produce exactly these columns, plus
 the dating columns that make "as of" runs possible:
 
     published_at  when the row became publicly available (the leakage cut-off)
-    valid_from    start of the period the row describes
-    valid_to      end of that period (NaT = still current)
+    valid_from    start of the period the row describes (never after published_at)
+    valid_to      end of that period (NaT = open-ended); descriptive only
     version       for "latest" tables: which release/snapshot the row belongs to
+
+As of date D the model sees rows with published_at <= D, nothing else.
 
 Two kinds of table:
     latest      a series of complete releases (Census vintages, OSM snapshots).

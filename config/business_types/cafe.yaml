@@ -16,10 +16,12 @@ competitors:
   - {tags: {amenity: fast_food, cuisine: coffee_shop}, weight: 0.8}
   - {tags: {shop: coffee}, weight: 0.5}
 
-# Anchors pull people past the door. Weight = demand boost per anchor within
-# anchor_radius_m (diminishing: log1p of weighted count).
+# Anchors pull people past the door. W = sum of weights of anchors within
+# radius_m; demand boost = max_boost * W / (W + half_saturation), so the first
+# few anchors matter most and the boost never exceeds max_boost.
 anchors:
   radius_m: 250
+  half_saturation: 2.0
   items:
     - {tags: {shop: supermarket}, weight: 1.0}
     - {tags: {railway: station}, weight: 1.0}
@@ -90,7 +92,9 @@ spend:
   avg_transaction_value: 13.50   # coffee + food, per visit (assumption)
   # Bigger receipt when our price is above the reference (same basket, higher price).
   atv_price_elasticity: 1.0
-  capacity_visits_per_month: null    # null = no hard cap
+  # Physical limit: ~500 transactions a day is a very busy single café
+  # (seats + barista throughput). null = no cap.
+  capacity_visits_per_month: 15000
 
 costs:                           # optional, enables the profit view
   rent_per_month: 7000           # ~80 m2 retail, Parramatta (assumption)

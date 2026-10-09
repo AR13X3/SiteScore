@@ -51,9 +51,12 @@ class TagRule(Strict):
 
 
 class Anchors(Strict):
+    """Demand boost = max_boost * W / (W + half_saturation), W = weighted anchor count."""
+
     radius_m: float = Field(gt=0)
     items: list[TagRule]
     max_boost: float = Field(ge=0)
+    half_saturation: float = Field(2.0, gt=0)
 
 
 class Segment(Strict):
@@ -200,6 +203,7 @@ class DistanceCfg(Strict):
     detour_factor: float = Field(ge=1)
     walk_speed_kmh: float = Field(gt=0)
     min_distance_m: float = Field(gt=0)
+    catchment_fade: float = Field(0.2, ge=0, lt=1)
 
 
 class OutsideOption(Strict):
@@ -213,10 +217,14 @@ class HuffCfg(Strict):
     outside_option: OutsideOption
 
 
+class DemandCfg(Strict):
+    commuter_trips_per_month: float = Field(gt=0)
+    station_usage_window_months: int = Field(ge=1)
+
+
 class CompetitorAttractiveness(Strict):
     default: float = Field(gt=0)
     chain: float = Field(gt=0)
-    kiosk: float = Field(gt=0)
 
 
 class Utility(Strict):
@@ -271,6 +279,7 @@ class DevelopmentsCfg(Strict):
 class ModelConfig(Strict):
     horizon_months: int = Field(ge=1, le=120)
     distance: DistanceCfg
+    demand: DemandCfg
     huff: HuffCfg
     competitor_attractiveness: CompetitorAttractiveness
     abm: AbmCfg

@@ -1,0 +1,60 @@
+"""Layer 7: spend. Captured customers -> visits -> revenue (and optional profit).
+
+    visits  = sum over points of potential x fit x anchors x share x visits/month
+    revenue = visits x average transaction value (adjusted for our price)
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+
+from sitescore.config import BusinessProfile, Costs
+from sitescore.model.demand import Catchment
+
+
+@dataclass(frozen=True)
+class SpendResult:
+    customers: float           # captured customers per month
+    visits_per_customer: float
+    atv: float                 # average transaction value at our price
+    visits: float              # after any capacity cap
+    capacity_factor: float     # 1.0 unless the capacity cap binds
+    revenue: float
+    visits_by_segment: dict[str, float]
+
+
+def effective_atv(profile: BusinessProfile, price: float | None = None) -> float:
+    """Basket value scales with our price relative to the reference price."""
+    p = profile.pricing
+    ratio = (price if price is not None else p.our_price) / p.reference_price
+    return profile.spend.avg_transaction_value * ratio ** profile.spend.atv_price_elasticity
+
+
+def compute_spend(catchment: Catchment, fit_mult: np.ndarray, p_own: np.ndarray,
+                  anchor_factor: float, profile: BusinessProfile) -> SpendResult:
+    captured = catchment.weight * fit_mult * p_own * anchor_factor
+    visits_pts = captured * catchment.visits_per_month
+    customers, visits = float(captured.sum()), float(visits_pts.sum())
+    cap = profile.spend.capacity_visits_per_month
+    capacity_factor = min(1.0, cap / visits) if cap and visits > 0 else 1.0
+    atv = effective_atv(profile)
+    by_segment = {str(s): float(visits_pts[catchment.segment == s].sum()) * capacity_factor
+                  for s in np.unique(catchment.segment)}
+    return SpendResult(
+        customers=customers,
+        visits_per_customer=visits / customers if customers > 0 else 0.0,
+        atv=atv,
+        visits=visits * capacity_factor,
+        capacity_factor=capacity_factor,
+        revenue=visits * capacity_factor * atv,
+        visits_by_segment=by_segment,
+    )
+
+
+def monthly_profit(revenue: float, costs: Costs | None) -> float | None:
+    if costs is None:
+        return None
+    return (revenue * (1 - costs.cogs_share) - costs.rent_per_month - costs.wages_per_month
+            - costs.other_fixed_per_month)
