@@ -149,3 +149,193 @@ export interface TableStatus {
   note: string;
   model_visible: boolean;
 }
+
+export interface Costs {
+  rent_per_month: number;
+  wages_per_month: number;
+  cogs_share: number;
+  other_fixed_per_month: number;
+}
+
+export interface AsOfRange {
+  min: string;
+  max: string;
+}
+
+export interface GeocodeHit {
+  label: string;
+  lat: number;
+  lon: number;
+}
+
+// --- Backtest (sitescore/backtest/types.py) ------------------------------------------
+
+export interface Evidence {
+  source: string;
+  open: boolean;
+  weight: number;
+  detail: string;
+  as_of: string | null;
+}
+
+export type HorizonStatus = "closed" | "survived" | "censored" | "unknown";
+
+export interface Horizon {
+  status: HorizonStatus;
+  horizon: string;
+  closed_on: string | null;
+  kind: string | null;
+  failure: string | null;
+  last_seen_trading: string | null;
+  detail: string;
+  site_closures: number;
+  site_closures_before: number;
+}
+
+export interface Actual {
+  still_open: boolean | null;
+  status_source: string;
+  survival_score: number | null;
+  evidence: Evidence[];
+  months_open: number;
+  reviews_per_month: number | null;
+  rating: number | null;
+  hours_change: number | null;
+  notes: string[];
+  horizon: Horizon | null;
+}
+
+export interface BacktestRow {
+  name: string;
+  osm_id: string;
+  lat: number;
+  lon: number;
+  opened: string;
+  opened_note: string;
+  opening_check: string;
+  opening_detail: string;
+  as_of: string;
+  data_cutoff: string | null;
+  predicted_score: number;
+  predicted_rank: number;
+  mature_monthly: number;
+  demand_only: number;
+  layers: Record<string, number>;
+  actual: Actual;
+  actual_score: number | null;
+  actual_rank: number | null;
+}
+
+export interface Accuracy {
+  n: number;
+  pairwise_accuracy: number | null;
+  pairs: number;
+  spearman: number | null;
+  top_third_actual_percentile: number | null;
+  bottom_third_actual_percentile: number | null;
+  baseline_pairwise_accuracy: number | null;
+  baseline_spearman: number | null;
+}
+
+export interface ThirdRow {
+  third: "top" | "middle" | "bottom";
+  n: number;
+  judged: number;
+  closed: number;
+  closure_rate: number | null;
+  site_failures: number;
+  operator_failures: number;
+  mean_site_closures: number | null;
+}
+
+export interface SurvivalReport {
+  horizon_months: number;
+  status_counts: Record<HorizonStatus, number>;
+  closure_kinds: Record<string, number>;
+  auc: number | null;
+  baseline_auc: number | null;
+  by_third: ThirdRow[];
+  baseline_by_third: ThirdRow[];
+  site_churn_auc: number | null;
+  baseline_site_churn_auc: number | null;
+}
+
+export interface LadderStep {
+  key: string;
+  label: string;
+  n: number;
+  pairs: number;
+  pairwise_accuracy: number | null;
+  spearman: number | null;
+  spearman_ci: [number, number] | null;
+  gain_ci: [number, number] | null;
+}
+
+export interface OutcomeComparison {
+  outcome: string;
+  label: string;
+  available: boolean;
+  note: string;
+  steps: LadderStep[];
+}
+
+export interface Skipped {
+  name: string;
+  reason: string;
+}
+
+export interface BacktestResult {
+  cohort: string;
+  business_type: string;
+  run_on: string;
+  score_months: number;
+  rows: BacktestRow[];
+  accuracy: Accuracy;
+  survival: SurvivalReport;
+  ladder: OutcomeComparison[];
+  opening_checks: Record<string, number>;
+  skipped: Skipped[];
+  provenance: Record<string, string | null>;
+  outcome_sources: string[];
+  caveats: string[];
+}
+
+export interface CrossSectionRow {
+  name: string;
+  osm_id: string;
+  lat: number;
+  lon: number;
+  first_mapped: string | null;
+  predicted_rank: number;
+  mature_monthly: number;
+  layers: Record<string, number>;
+  reviews: number | null;
+  reviews_per_month: number | null;
+  rating: number | null;
+  age_months: number | null;
+  site_closures: number;
+}
+
+export interface CrossSectionResult {
+  business_type: string;
+  run_on: string;
+  as_of: string;
+  time_safe: boolean;
+  n: number;
+  rows: CrossSectionRow[];
+  outcomes: OutcomeComparison[];
+  provenance: Record<string, string | null>;
+  caveats: string[];
+}
+
+export interface Cohort {
+  id: string;
+  label: string;
+}
+
+/** The full business profile (GET /api/business-types/{id}); only what the UI reads. */
+export interface BusinessProfile {
+  id: string;
+  name: string;
+  costs: Costs | null;
+}

@@ -9,7 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from sitescore.api.deps import get_market, get_store
-from sitescore.config import load_business_types, load_calendar, load_model_config, load_region
+from sitescore.config import (
+    Costs,
+    load_business_types,
+    load_calendar,
+    load_model_config,
+    load_region,
+)
 from sitescore.datastore import DataStore, NoDataAsOf
 from sitescore.model.simulate import simulate
 from sitescore.model.site import evaluate_site
@@ -45,6 +51,8 @@ class SimulateRequest(EvaluateRequest):
         None, description="Opening month (default: the month after as_of)")
     uncertainty: bool = Field(
         False, description="Add Monte Carlo P10/P50/P90 bands and each site's chance of being best")
+    costs: Costs | None = Field(
+        None, description="Override the business type's running costs (rent, wages...) for profit")
 
 
 @router.post("/simulate", response_model=SimulationResult)
@@ -60,10 +68,12 @@ def simulate_sites(req: SimulateRequest, store: StoreDep) -> SimulationResult:
         market = get_market(store, as_of, req.business_type)
     except NoDataAsOf as exc:
         raise HTTPException(422, str(exc)) from exc
+    profile = profiles[req.business_type]
+    if req.costs is not None:
+        profile = profile.model_copy(update={"costs": req.costs})
     region = load_region()
-    return simulate(market, _with_ids(req.sites), profiles[req.business_type],
-                    load_model_config(), region, load_calendar(region.state), req.open_date,
-                    uncertainty=req.uncertainty)
+    return simulate(market, _with_ids(req.sites), profile, load_model_config(), region,
+                    load_calendar(region.state), req.open_date, uncertainty=req.uncertainty)
 
 
 def _with_ids(sites: list[Site]) -> list[Site]:

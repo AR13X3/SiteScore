@@ -35,6 +35,9 @@ def huff_probabilities(d_own: np.ndarray, d_comp: np.ndarray, a_own: float, a_co
     return u_own / total, u_comp / total[:, None], np.full(len(d_own), u_out) / total
 
 
+MAP_COMPETITORS = 30  # competitors listed per site (those taking >= 0.1% of its demand)
+
+
 @dataclass(frozen=True)
 class CompetitionResult:
     p_own: np.ndarray          # per catchment point
@@ -68,7 +71,7 @@ def compute_competition(sx: float, sy: float, catchment: Catchment, fit_mult: np
 
     site_to_comp = walk_distance(sx, sy, comp.x, comp.y, cfg.distance, floor=False)
     taken = (w[:, None] * p_comp).sum(axis=0) / total if total > 0 else np.zeros(len(comp))
-    top = np.argsort(-taken)[:5]
+    top = np.argsort(-taken)[:MAP_COMPETITORS]  # for the map; the summary needs fewer
     return CompetitionResult(
         p_own=p_own,
         factor=share(p_own),
@@ -82,6 +85,6 @@ def compute_competition(sx: float, sy: float, catchment: Catchment, fit_mult: np
              "lat": float(comp.lat[i]), "lon": float(comp.lon[i]),
              "distance_m": round(float(site_to_comp[i])),
              "share_of_local_demand": round(float(taken[i]), 4)}
-            for i in top if taken[i] > 0
+            for i in top if taken[i] >= 0.001
         ],
     )

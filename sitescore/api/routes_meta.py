@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
 from sitescore import __version__
 from sitescore.api.deps import get_store
+from sitescore.backtest.cohort import data_ready_date
 from sitescore.config import load_business_types, load_region, load_sources
 from sitescore.datastore import TABLES, DataStore
 from sitescore.pipeline.geocode import search as address_search
@@ -64,6 +66,12 @@ def geocode(q: str) -> list[dict]:
     if get_settings().offline:
         return []
     return list(address_search(q[:200]))
+
+
+@router.get("/data/as-of-range")
+def as_of_range(store: StoreDep) -> dict:
+    """Dates the model can run "as of": from the first day every input had been published."""
+    return {"min": data_ready_date(store), "max": dt.date.today()}  # noqa: DTZ011
 
 
 @router.get("/data/status")

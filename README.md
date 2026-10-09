@@ -13,16 +13,35 @@ python run.py install    # one-time: virtualenv, dependencies, frontend build
 python run.py start      # opens http://127.0.0.1:8000
 ```
 
-To use the app:
+To use the app (**Compare sites** screen):
 
-1. Click the map to drop up to 5 candidate sites, or press **Load 3 demo sites**.
-2. Drag pins to adjust, and rename sites in the side panel.
+1. Add up to 5 candidate sites:
+   - type an address in the search box
+   - click the map
+   - or press **Load 3 demo sites**
+2. Drag pins to adjust them, and rename sites in the side panel.
+3. Select a site (its pin or its row) to see its catchment on the map:
+   - walking rings for residents, workers and commuters
+   - competitors, sized by the share of the site's demand they take
+   - nearby anchors such as supermarkets, stations and schools
 
 Results update automatically:
 
-- a 36-month revenue chart
+- a 36-month chart with P10–P90 bands, switchable between **revenue** and **profit**
 - a ranking
 - a "why each site wins or loses" card per site, with a per-layer breakdown against the average candidate
+
+More controls:
+
+- **Running costs:** the rent, wages, cost-of-goods and other-cost inputs drive profit, break-even and each site's chance of a 36-month loss. The defaults come from the business profile, and changes are sent to the model as overrides.
+- **Data as of:** run the model as it would have looked on a past date. Only data published by then is used, from 12 Oct 2022 (when the last Census release came out) to today.
+- **Backtest screen:** the time-safe backtest, with:
+  - a cohort map and the opening check
+  - closures by predicted third
+  - a "which layers help?" dot plot with 90% intervals
+  - a predicted-vs-actual table, where each café expands to show its evidence
+
+  Another switch shows **today's cafés** (the cross-section), clearly marked as not time-safe.
 
 The badge in the top bar shows whether the results use real or mock data. Hover over it for each source.
 

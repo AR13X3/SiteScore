@@ -65,7 +65,8 @@ def anchor_boost(sx: float, sy: float, market: Market, profile: BusinessProfile,
     boost = profile.anchors.max_boost * w / (w + profile.anchors.half_saturation)
     order = np.argsort(dist[near])
     listed = [{"name": str(a.names[near][i]) or "unnamed", "distance_m": round(float(dist[near][i])),
-               "weight": float(a.weight[near][i])} for i in order]
+               "weight": float(a.weight[near][i]), "lat": float(a.lat[near][i]),
+               "lon": float(a.lon[near][i])} for i in order]
     return 1.0 + boost, listed
 
 
@@ -104,6 +105,8 @@ def compute_demand(sx: float, sy: float, market: Market, profile: BusinessProfil
             "potential_customers": float(weight.sum()),
             "walk_minutes": spec.max_walk_minutes,
             "radius_m": round(radius),
+            # as the crow flies, for drawing the catchment on a map
+            "straight_radius_m": round(radius / cfg.distance.detour_factor),
         }
 
     catchment = Catchment(**{k: np.concatenate(v) for k, v in cols.items()})

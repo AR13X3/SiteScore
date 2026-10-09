@@ -1,127 +1,60 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { DataBadge } from "./components/DataBadge";
-import { RevenueChart } from "./components/RevenueChart";
-import { SiteList } from "./components/SiteList";
-import { SiteMap } from "./components/SiteMap";
-import { WhyPanel } from "./components/WhyPanel";
 import { api } from "./lib/api";
-import { money, parameterLabel, pct } from "./lib/format";
-import { MAX_SITES, useDarkMode } from "./lib/theme";
-import type { BusinessType, CandidateSite, Region, SimulationResult, TableStatus } from "./lib/types";
+import { useDarkMode } from "./lib/theme";
+import type { AsOfRange, BusinessType, Region, TableStatus } from "./lib/types";
+import { BacktestView } from "./views/BacktestView";
+import { CompareView } from "./views/CompareView";
 
-const DEMO_SITES: Omit<CandidateSite, "id" | "slot">[] = [
-  { label: "Church St, Parramatta", lat: -33.815, lon: 151.0035 },
-  { label: "Harris Park", lat: -33.8226, lon: 151.0085 },
-  { label: "Wentworth Point", lat: -33.829, lon: 151.075 },
+type Screen = "compare" | "backtest";
+const SCREENS: { id: Screen; label: string }[] = [
+  { id: "compare", label: "Compare sites" },
+  { id: "backtest", label: "Backtest" },
 ];
 
-let nextId = 1;
-const fmt = (v: number) => (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2));
-const newId = () => `s${nextId++}`;
-
-function freeSlot(sites: CandidateSite[]): number {
-  const used = new Set(sites.map((s) => s.slot));
-  return [...Array(MAX_SITES).keys()].find((i) => !used.has(i)) ?? 0;
+/** The screen lives in the URL hash (#backtest), so it survives reloads and can be linked. */
+function useScreen(): [Screen, (s: Screen) => void] {
+  const read = (): Screen => (window.location.hash === "#backtest" ? "backtest" : "compare");
+  const [screen, setScreen] = useState<Screen>(read);
+  useEffect(() => {
+    const onHash = () => setScreen(read());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  return [screen, (s) => (window.location.hash = s === "compare" ? "" : s)];
 }
+
+const longDate = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });
 
 export default function App() {
   const dark = useDarkMode();
+  const [screen, setScreen] = useScreen();
   const [region, setRegion] = useState<Region | null>(null);
   const [types, setTypes] = useState<BusinessType[]>([]);
   const [tables, setTables] = useState<TableStatus[]>([]);
+  const [range, setRange] = useState<AsOfRange | null>(null);
   const [businessType, setBusinessType] = useState("cafe");
-  const [sites, setSites] = useState<CandidateSite[]>([]);
-  const [result, setResult] = useState<SimulationResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [bandsLoading, setBandsLoading] = useState(false);
+  const [asOf, setAsOf] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const requestSeq = useRef(0);
+  // Both screens stay mounted once visited, so switching never loses your sites or results.
+  const [visitedBacktest, setVisitedBacktest] = useState(screen === "backtest");
+  useEffect(() => {
+    if (screen === "backtest") setVisitedBacktest(true);
+  }, [screen]);
 
   useEffect(() => {
-    Promise.all([api.region(), api.businessTypes(), api.dataStatus()])
-      .then(([r, t, d]) => {
+    Promise.all([api.region(), api.businessTypes(), api.dataStatus(), api.asOfRange()])
+      .then(([r, t, d, a]) => {
         setRegion(r);
         setTypes(t);
         setTables(d);
+        setRange(a);
       })
       .catch((e: Error) => setError(`Can't reach the SiteScore API: ${e.message}`));
   }, []);
 
-  // Re-simulate shortly after any change: first the central estimate (fast), then the
-  // same request with Monte Carlo bands. Responses from superseded requests are ignored.
-  useEffect(() => {
-    if (sites.length === 0) {
-      setResult(null);
-      return;
-    }
-    const seq = ++requestSeq.current;
-    const current = () => seq === requestSeq.current;
-    const timer = setTimeout(async () => {
-      const body = {
-        business_type: businessType,
-        sites: sites.map(({ id, label, lat, lon }) => ({ id, label, lat, lon })),
-      };
-      setLoading(true);
-      try {
-        const base = await api.simulate(body);
-        if (!current()) return;
-        setResult(base);
-        setError(null);
-        setLoading(false);
-        setBandsLoading(true);
-        const withBands = await api.simulate({ ...body, uncertainty: true });
-        if (current()) setResult(withBands);
-      } catch (e) {
-        if (current()) setError((e as Error).message);
-      } finally {
-        if (current()) {
-          setLoading(false);
-          setBandsLoading(false);
-        }
-      }
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [sites, businessType]);
-
-  const addSite = useCallback((lat: number, lon: number) => {
-    setSites((prev) => {
-      if (prev.length >= MAX_SITES) return prev;
-      const slot = freeSlot(prev);
-      return [...prev, { id: newId(), slot, label: `Site ${slot + 1}`, lat, lon }];
-    });
-  }, []);
-  const moveSite = useCallback((id: string, lat: number, lon: number) => {
-    setSites((prev) => prev.map((s) => (s.id === id ? { ...s, lat, lon } : s)));
-  }, []);
-  const renameSite = useCallback((id: string, label: string) => {
-    setSites((prev) => prev.map((s) => (s.id === id ? { ...s, label } : s)));
-  }, []);
-  const removeSite = useCallback((id: string) => setSites((prev) => prev.filter((s) => s.id !== id)), []);
-  const loadDemo = useCallback(
-    () => setSites(DEMO_SITES.map((s, i) => ({ ...s, id: newId(), slot: i }))),
-    [],
-  );
-
   const selectedType = types.find((t) => t.id === businessType);
-  // While a refetch runs, keep showing the previous result (dimmed), minus removed sites.
-  const current = useMemo<SimulationResult | null>(() => {
-    if (!result) return null;
-    const ids = new Set(sites.map((s) => s.id));
-    const kept = result.sites.filter((s) => ids.has(s.site.id));
-    if (!kept.length) return null;
-    const uncertainty = result.uncertainty && {
-      ...result.uncertainty,
-      sites: result.uncertainty.sites.filter((u) => ids.has(u.site_id)),
-    };
-    return {
-      ...result,
-      sites: kept,
-      explanations: result.explanations.filter((e) => ids.has(e.site_id)),
-      uncertainty,
-    };
-  }, [result, sites]);
-  const winner = current?.explanations[0];
-  const winnerOdds = current?.uncertainty?.sites.find((u) => u.site_id === winner?.site_id);
 
   return (
     <div className="app">
@@ -131,8 +64,20 @@ export default function App() {
             ◆
           </span>
           <span className="brand__name">SiteScore</span>
-          {region && <span className="muted">· {region.name}</span>}
+          {region && <span className="muted brand__region">{region.name}</span>}
         </div>
+        <nav className="tabs" aria-label="Screens">
+          {SCREENS.map((s) => (
+            <button
+              key={s.id}
+              className={`tab ${screen === s.id ? "is-on" : ""}`}
+              aria-current={screen === s.id ? "page" : undefined}
+              onClick={() => setScreen(s.id)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </nav>
         <div className="topbar__controls">
           <label className="field">
             <span className="muted">Business</span>
@@ -145,6 +90,23 @@ export default function App() {
               ))}
             </select>
           </label>
+          {screen === "compare" && range && (
+            <label className="field">
+              <span className="muted">Data as of</span>
+              <input
+                type="date"
+                min={range.min}
+                max={range.max}
+                value={asOf ?? range.max}
+                onChange={(e) => setAsOf(e.target.value && e.target.value !== range.max ? e.target.value : null)}
+              />
+              {asOf && (
+                <button className="btn btn--ghost btn--small" onClick={() => setAsOf(null)}>
+                  Today
+                </button>
+              )}
+            </label>
+          )}
           <DataBadge tables={tables} />
         </div>
       </header>
@@ -155,91 +117,24 @@ export default function App() {
           The {selectedType.name.toLowerCase()} profile is a draft: its assumptions haven't been validated yet.
         </div>
       )}
+      {screen === "compare" && asOf && (
+        <div className="alert alert--info">
+          <strong>Looking back to {longDate(asOf)}.</strong> The model sees only data published by then (the map,
+          patronage and approved developments as they were), as if you were choosing a site that day. Each site opens the
+          month after.
+        </div>
+      )}
 
-      <main className="layout">
-        <section className="card map-card">
-          {region ? (
-            <SiteMap
-              region={region}
-              sites={sites}
-              dark={dark}
-              canAdd={sites.length < MAX_SITES}
-              onAdd={addSite}
-              onMove={moveSite}
-            />
-          ) : (
-            <div className="map placeholder" />
-          )}
-        </section>
-
-        <aside className="card side">
-          <h2>Candidate sites</h2>
-          <SiteList
-            sites={sites}
-            result={current}
-            dark={dark}
-            onRename={renameSite}
-            onRemove={removeSite}
-            onDemo={loadDemo}
-            onClear={() => setSites([])}
-          />
-          {winner && current && current.sites.length > 1 && (
-            <div className="winner">
-              <span className="muted">Best over 36 months</span>
-              <strong>{current.sites.find((s) => s.site.id === winner.site_id)?.site.label}</strong>
-              <span>
-                {money(winner.total_revenue)} · opens{" "}
-                {new Date(`${current.open_date}T00:00:00`).toLocaleDateString("en-AU", { month: "long", year: "numeric" })}
-              </span>
-              {winnerOdds && current.uncertainty && (
-                <span className="muted">
-                  Best in {pct(winnerOdds.prob_best)} of {current.uncertainty.n_runs} scenarios
-                </span>
-              )}
-            </div>
-          )}
-        </aside>
-
-        {current && (
-          <section className={`card chart-card ${loading ? "is-loading" : ""}`}>
-            <div className="card-head">
-              <h2>Projected monthly revenue</h2>
-              <span className="muted">
-                Line: central estimate ·{" "}
-                {current.uncertainty
-                  ? `shaded: 80% of ${current.uncertainty.n_runs} scenarios (P10–P90)`
-                  : bandsLoading
-                    ? "running 300 scenarios for the range…"
-                    : "no range"}{" "}
-                · includes ramp-up, seasons and approved developments · data as of {current.as_of}
-              </span>
-            </div>
-            <RevenueChart result={current} sites={sites} dark={dark} />
-            {current.uncertainty && (
-              <details className="assumptions">
-                <summary>Assumptions varied in the scenarios</summary>
-                <ul>
-                  {current.uncertainty.parameters.map((p) => (
-                    <li key={p.path}>
-                      <span>{parameterLabel(p.path)}</span>
-                      <span className="muted">
-                        {fmt(p.base)} (P10–P90: {fmt(p.p10)}–{fmt(p.p90)})
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-          </section>
-        )}
-
-        {current && (
-          <section className={`why ${loading ? "is-loading" : ""}`}>
-            <h2>Why each site wins or loses</h2>
-            <WhyPanel result={current} sites={sites} dark={dark} />
-          </section>
-        )}
-      </main>
+      {region && (
+        <div hidden={screen !== "compare"}>
+          <CompareView region={region} businessType={businessType} asOf={asOf} dark={dark} />
+        </div>
+      )}
+      {region && visitedBacktest && (
+        <div hidden={screen !== "backtest"}>
+          <BacktestView region={region} businessType={businessType} dark={dark} />
+        </div>
+      )}
     </div>
   );
 }

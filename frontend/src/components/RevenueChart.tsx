@@ -1,18 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { escapeHtml, money, moneyExact, shortMonth } from "../lib/format";
 import { siteColor, token } from "../lib/theme";
-import type { CandidateSite, SimulationResult } from "../lib/types";
+import type { CandidateSite, Costs, SimulationResult } from "../lib/types";
 import { type ChartOption, useECharts } from "./useECharts";
+
+export type Metric = "revenue" | "profit";
 
 interface Props {
   result: SimulationResult;
   sites: CandidateSite[];
   dark: boolean;
+  metric?: Metric;
+  /** Running costs behind the profit figures (turns revenue bands into profit bands). */
+  costs?: Costs | null;
 }
 
 const DIRECT_LABEL_LIMIT = 4; // past this, end labels collide; legend + tooltip carry identity
 const LABEL_FONT = "12px Inter, system-ui, sans-serif";
 const MAX_LABEL_PX = 180;
+const CHART_PLOT_PX = 300; // approximate plot height inside the 360 px chart
+const LABEL_GAP_PX = 16;   // end labels closer than this collide
 
 let ctx: CanvasRenderingContext2D | null = null;
 function textWidth(s: string): number {
@@ -30,9 +37,15 @@ function fitLabel(s: string, maxPx: number): string {
   return `${out.trimEnd()}…`;
 }
 
-export function RevenueChart({ result, sites, dark }: Props) {
+export function RevenueChart({ result, sites, dark, metric = "revenue", costs }: Props) {
   const [width, setWidth] = useState(800);
+  const profit = metric === "profit" && !!costs;
   const option = useMemo<ChartOption>(() => {
+    // Profit is linear in revenue (revenue x (1 - COGS) - fixed costs), so revenue
+    // percentiles map exactly onto profit percentiles.
+    const fixed = costs ? costs.rent_per_month + costs.wages_per_month + costs.other_fixed_per_month : 0;
+    const margin = costs ? 1 - costs.cogs_share : 1;
+    const toMetric = (revenue: number) => (profit ? revenue * margin - fixed : revenue);
     const slotOf = new Map(sites.map((s) => [s.id, s.slot]));
     const months = result.sites[0]?.months.map((m) => m.month) ?? [];
     const text = token("--text-secondary");
@@ -43,12 +56,23 @@ export function RevenueChart({ result, sites, dark }: Props) {
     // End labels only when they leave most of the width to the plot; otherwise the
     // legend and tooltip carry identity (narrow screens).
     const maxLabelPx = Math.min(MAX_LABEL_PX, width * 0.22);
-    const labelEnds = result.sites.length <= DIRECT_LABEL_LIMIT && maxLabelPx >= 70;
+    // ...and only when they don't collide: converging lines get no end labels (nudging
+    // them apart would detach them from their lines).
+    const ends = result.sites.map((s) => toMetric(s.months[last]?.revenue ?? 0)).sort((a, b) => a - b);
+    const all = result.sites.flatMap((s) => s.months.map((m) => toMetric(m.revenue)));
+    const span = Math.max(...all, 0) - Math.min(...all, 0) || 1;
+    const collide = ends.some((v, i) => i > 0 && ((v - ends[i - 1]) / span) * (CHART_PLOT_PX) < LABEL_GAP_PX);
+    const labelEnds = result.sites.length <= DIRECT_LABEL_LIMIT && maxLabelPx >= 70 && !collide;
     const endLabels = new Map(
       result.sites.map((s) => [s.site.label || s.site.id, fitLabel(s.site.label || s.site.id, maxLabelPx)]),
     );
     const rightPad = labelEnds ? Math.max(...[...endLabels.values()].map(textWidth)) + 28 : 16;
-    const bandOf = new Map(result.uncertainty?.sites.map((u) => [u.site_id, u.revenue]) ?? []);
+    const bandOf = new Map(
+      result.uncertainty?.sites.map((u) => [
+        u.site_id,
+        { p10: u.revenue.p10.map(toMetric), p90: u.revenue.p90.map(toMetric) },
+      ]) ?? [],
+    );
     const lineIds = new Set(result.sites.map((s) => s.site.id));
 
     return {
@@ -111,8 +135,10 @@ export function RevenueChart({ result, sites, dark }: Props) {
           const band = bandOf.get(s.site.id);
           if (!band) return [];
           const color = siteColor(slotOf.get(s.site.id) ?? 0, dark);
+          // stackStrategy "all": stack on P10 even when it's negative (profit), which
+          // ECharts' default same-sign stacking would put on zero instead.
           const common = {
-            type: "line", stack: `band-${s.site.id}`, smooth: 0.2, symbol: "none", silent: true,
+            type: "line", stack: `band-${s.site.id}`, stackStrategy: "all", smooth: 0.2, symbol: "none", silent: true,
             lineStyle: { opacity: 0 }, tooltip: { show: false }, z: 1,
           };
           return [
@@ -131,7 +157,7 @@ export function RevenueChart({ result, sites, dark }: Props) {
           id: s.site.id,
           z: 3,
           name: s.site.label || s.site.id,
-          data: s.months.map((m) => Math.round(m.revenue)),
+          data: s.months.map((m) => Math.round(toMetric(m.revenue))),
           color,
           smooth: 0.2,
           lineStyle: { width: 2, cap: "round", join: "round" },
@@ -140,6 +166,14 @@ export function RevenueChart({ result, sites, dark }: Props) {
           symbolSize: (_: unknown, p: { dataIndex: number }) => (p.dataIndex === last ? 8 : 0),
           itemStyle: { color, borderColor: surface, borderWidth: 2 },
           emphasis: { focus: "series", lineStyle: { width: 2 } },
+          // In profit mode, a solid baseline at $0 separates making from losing money.
+          markLine: profit && s === result.sites[0]
+            ? {
+                silent: true, symbol: "none", label: { show: false },
+                lineStyle: { color: token("--axis"), width: 1, type: "solid" },
+                data: [{ yAxis: 0 }],
+              }
+            : undefined,
           endLabel: {
             show: labelEnds,
             color: text,
@@ -151,7 +185,7 @@ export function RevenueChart({ result, sites, dark }: Props) {
         }),
       ],
     };
-  }, [result, sites, dark, width]);
+  }, [result, sites, dark, width, profit, costs]);
 
   const ref = useECharts(option);
   useEffect(() => {
@@ -162,5 +196,12 @@ export function RevenueChart({ result, sites, dark }: Props) {
     setWidth(el.clientWidth);
     return () => ro.disconnect();
   }, [ref]);
-  return <div ref={ref} className="chart" role="img" aria-label="Projected monthly revenue per site over 36 months" />;
+  return (
+    <div
+      ref={ref}
+      className="chart"
+      role="img"
+      aria-label={`Projected monthly ${profit ? "profit" : "revenue"} per site over 36 months`}
+    />
+  );
 }

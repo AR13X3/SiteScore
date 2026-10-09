@@ -6,13 +6,15 @@ interface Props {
   sites: CandidateSite[];
   result: SimulationResult | null;
   dark: boolean;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
   onRename: (id: string, label: string) => void;
   onRemove: (id: string) => void;
   onDemo: () => void;
   onClear: () => void;
 }
 
-export function SiteList({ sites, result, dark, onRename, onRemove, onDemo, onClear }: Props) {
+export function SiteList({ sites, result, dark, selectedId, onSelect, onRename, onRemove, onDemo, onClear }: Props) {
   const totals = new Map(result?.sites.map((s) => [s.site.id, s.total_revenue]));
   const ranks = new Map(result?.explanations.map((e) => [e.site_id, e.rank]));
   const odds = new Map(result?.uncertainty?.sites.map((u) => [u.site_id, u]));
@@ -20,8 +22,8 @@ export function SiteList({ sites, result, dark, onRename, onRemove, onDemo, onCl
   if (sites.length === 0) {
     return (
       <div className="empty">
-        <p className="empty__title">Click the map to drop up to {MAX_SITES} candidate sites</p>
-        <p className="muted">Drag pins to fine-tune. Results update automatically.</p>
+        <p className="empty__title">Search an address or click the map to add up to {MAX_SITES} sites</p>
+        <p className="muted">Drag pins to fine-tune. Select a site to see its catchment and competitors on the map.</p>
         <button className="btn btn--primary" onClick={onDemo}>
           Load 3 demo sites
         </button>
@@ -33,10 +35,20 @@ export function SiteList({ sites, result, dark, onRename, onRemove, onDemo, onCl
     <div className="sites">
       <ol className="site-list">
         {sites.map((s) => (
-          <li key={s.id} className="site-row">
-            <span className="site-key" style={{ background: siteColor(s.slot, dark) }}>
+          <li
+            key={s.id}
+            className={`site-row ${s.id === selectedId ? "is-selected" : ""}`}
+            onClick={() => onSelect(s.id)}
+          >
+            <button
+              className="site-key"
+              style={{ background: siteColor(s.slot, dark) }}
+              aria-label={`Show ${s.label} on the map`}
+              aria-pressed={s.id === selectedId}
+              onClick={() => onSelect(s.id)}
+            >
               {s.slot + 1}
-            </span>
+            </button>
             <input
               className="site-name"
               value={s.label}
@@ -57,7 +69,14 @@ export function SiteList({ sites, result, dark, onRename, onRemove, onDemo, onCl
                 <span className="muted">…</span>
               )}
             </span>
-            <button className="icon-btn" aria-label={`Remove ${s.label}`} onClick={() => onRemove(s.id)}>
+            <button
+              className="icon-btn"
+              aria-label={`Remove ${s.label}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(s.id);
+              }}
+            >
               ×
             </button>
           </li>

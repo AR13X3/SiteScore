@@ -30,3 +30,21 @@ export function useDarkMode(): boolean {
 export function token(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
+
+// Status colours are fixed (never themed) and always shown with a label or shape:
+// colour never carries a status on its own.
+export const STATUS = { good: "#0ca30c", critical: "#d03b3b" } as const;
+
+// Ordinal single-hue ramp (blue), validated per mode: light end clears 2:1 on the
+// surface, steps read monotone. More = darker on light, more = lighter on dark.
+const ORDINAL = {
+  light: ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281"],
+  dark: ["#184f95", "#256abf", "#3987e5", "#6da7ec", "#9ec5f4"],
+};
+
+export function ordinalColor(bin: number, dark: boolean): string {
+  const ramp = ORDINAL[dark ? "dark" : "light"];
+  return ramp[Math.max(0, Math.min(ramp.length - 1, bin))];
+}
+
+export const ORDINAL_BINS = ORDINAL.light.length;

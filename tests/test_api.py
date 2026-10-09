@@ -76,6 +76,31 @@ def test_cross_section_endpoint(client):
     assert client.get("/api/backtest/cross-section?business_type=bowling").status_code == 404
 
 
+def test_cost_overrides_change_profit_not_revenue(client):
+    body = {"as_of": "2026-06-01", "sites": [CBD]}
+    base = client.post("/api/simulate", json=body).json()["sites"][0]
+    costs = {"rent_per_month": 0, "wages_per_month": 0, "cogs_share": 0.3,
+             "other_fixed_per_month": 0}
+    free = client.post("/api/simulate", json={**body, "costs": costs}).json()["sites"][0]
+    assert free["total_revenue"] == pytest.approx(base["total_revenue"])
+    assert free["total_profit"] == pytest.approx(0.7 * free["total_revenue"])
+    assert free["total_profit"] > base["total_profit"]
+
+
+def test_map_overlay_details(client):
+    site = client.post("/api/simulate", json={"as_of": "2026-06-01", "sites": [CBD]}).json()
+    layers = {lay["key"]: lay["details"] for lay in site["sites"][0]["mature"]["layers"]}
+    assert all({"lat", "lon"} <= set(a) for a in layers["anchors"]["anchors"])
+    rivals = layers["competition"]["top_competitors"]
+    assert rivals and all(r["share_of_local_demand"] >= 0.001 for r in rivals)
+    assert all(0 < s["straight_radius_m"] < s["radius_m"] for s in layers["demand"]["segments"].values())
+
+
+def test_as_of_range(client):
+    r = client.get("/api/data/as-of-range").json()
+    assert r["min"] < r["max"]
+
+
 def test_unknown_business_type_is_404(client):
     resp = client.post("/api/evaluate", json={"business_type": "bowling", "sites": [CBD]})
     assert resp.status_code == 404
