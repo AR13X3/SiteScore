@@ -7,9 +7,19 @@ import datetime as dt
 from pydantic import BaseModel
 
 
+class EvidenceOut(BaseModel):
+    source: str
+    open: bool
+    weight: float
+    detail: str
+    as_of: dt.date | None = None
+
+
 class Actual(BaseModel):
     still_open: bool | None
     status_source: str
+    survival_score: float | None    # -1 (every source says closed) .. +1 (every source says open)
+    evidence: list[EvidenceOut]
     months_open: float
     reviews_per_month: float | None
     rating: float | None

@@ -79,5 +79,24 @@ TABLES: dict[str, TableSpec] = {
             "Google Places snapshot. Outcome data: backtest ground truth only",
             model_visible=False,
         ),
+        TableSpec(
+            "overture_places", "overture_places", "latest",
+            ("overture_id", "name", "lon", "lat", "category", "operating_status", "confidence"),
+            "Overture Maps places (cafes, gyms, childcare). Outcome data: backtest only",
+            model_visible=False,
+        ),
+        TableSpec(
+            "fsq_places", "foursquare_places", "latest",
+            ("fsq_place_id", "name", "lon", "lat", "category", "date_created", "date_refreshed",
+             "date_closed"),
+            "Foursquare Open Source Places with added/closed dates. Outcome data: backtest only",
+            model_visible=False,
+        ),
+        TableSpec(
+            "business_names", "asic_business_names", "latest",
+            ("bn_name", "status", "registered", "cancelled", "abn"),
+            "ASIC business names matching businesses in the region. Outcome data: backtest only",
+            model_visible=False,
+        ),
     ]
 }

@@ -358,11 +358,23 @@ class OutcomeWeights(Strict):
     hours_change: float = Field(ge=0)
 
 
+class SurvivalEvidence(Strict):
+    google: float = Field(ge=0)
+    osm_closed: float = Field(ge=0)
+    osm_open: float = Field(ge=0)
+    overture: float = Field(ge=0)
+    foursquare: float = Field(ge=0)
+    asic: float = Field(ge=0)
+
+
 class BacktestCfg(Strict):
     window: tuple[dt.date, dt.date]
     score_months: int = Field(ge=1)
     min_months_open: int = Field(ge=0)
     include_chains: bool
+    survival_evidence: SurvivalEvidence
+    evidence_half_life_months: float = Field(gt=0)
+    asic_match_window_months: tuple[int, int]
     outcome_weights: OutcomeWeights
 
 

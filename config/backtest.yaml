@@ -15,10 +15,30 @@ min_months_open: 12
 # on head-office decisions, so they can be left out.
 include_chains: false
 
+# "Still trading?" is a weighted vote across sources. Each source that knows the
+# business says open or closed; survival score = (open - closed) / total weight,
+# from -1 (everyone says closed) to +1 (everyone says open).
+survival_evidence:
+  google: 3.0       # Google business_status (needs GOOGLE_PLACES_API_KEY)
+  osm_closed: 2.0   # a mapper saw it close or change hands (removed / replaced / disused)
+  osm_open: 1.0     # still on OpenStreetMap (weaker: closures often go unmapped)
+  overture: 1.0     # listed in the latest Overture release, scaled by its confidence
+  foursquare: 1.0   # Foursquare date_closed, or listed and recently refreshed
+  asic: 0.75        # business name registered around opening, still registered?
+
+# Older observations say less about today: each source's weight halves for every
+# this many months since its data was collected (e.g. the free Foursquare
+# snapshot from Feb 2025 counts about a third as much as fresh data).
+evidence_half_life_months: 12
+
+# ASIC has no addresses: only trust a unique exact name registered within this
+# window around the opening date (months before, months after).
+asic_match_window_months: [18, 6]
+
 # Actual performance = weighted sum of standardised outcome proxies. Missing
 # proxies are skipped (weights re-normalised over what's available).
 outcome_weights:
-  survival: 2.0           # still trading today (1) vs closed or gone from the map (0)
+  survival: 2.0           # survival score from the vote above
   reviews_per_month: 1.0  # Google review count / months open (needs Google Places)
   rating: 0.5             # Google rating (needs Google Places)
   hours_change: 0.5       # change in weekly opening hours since first mapped (OSM)

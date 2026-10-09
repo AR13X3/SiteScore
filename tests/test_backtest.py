@@ -146,7 +146,10 @@ def test_closed_and_renamed_businesses_count_as_not_surviving(mock_store):
     renamed = Business("Old Name", latest["lat"], latest["lon"], dt.date(2023, 1, 1),
                        dt.date(2022, 12, 31), osm_id=latest["osm_id"])
     out = observe([gone, renamed], mock_store, TODAY)
-    assert out["mock:never-existed"].still_open is None  # not on the map at all: unknown
+    gone_out = out["mock:never-existed"]
+    # Not on the map and not listed anywhere: only a weak "not in Overture" vote.
+    assert [e.source for e in gone_out.evidence] == ["overture"]
+    assert gone_out.still_open is False and gone_out.survival_score == -1.0
     assert out[latest["osm_id"]].still_open is False
 
 

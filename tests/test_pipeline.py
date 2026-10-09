@@ -23,8 +23,9 @@ def test_mock_output_matches_schema_and_region(adapter, ctx):
         assert table in adapter.tables
         df = validate_frame(TABLES[table], raw)
         assert len(df) > 0
-        assert df["lon"].between(lon_min - pad, lon_max + pad).all(), table
-        assert df["lat"].between(lat_min - pad, lat_max + pad).all(), table
+        if "lon" in df:  # every table but ASIC business names has coordinates
+            assert df["lon"].between(lon_min - pad, lon_max + pad).all(), table
+            assert df["lat"].between(lat_min - pad, lat_max + pad).all(), table
         assert (df["published_at"] <= pd.Timestamp(ctx.today)).all(), table
 
 

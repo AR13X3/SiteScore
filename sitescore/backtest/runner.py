@@ -11,15 +11,25 @@ from sitescore.backtest import metrics
 from sitescore.backtest.cohort import Business
 from sitescore.backtest.outcomes import Outcome, observe
 from sitescore.backtest.predict import Prediction, predict
-from sitescore.backtest.types import Accuracy, Actual, BacktestResult, BacktestRow, Skipped
+from sitescore.backtest.types import (
+    Accuracy,
+    Actual,
+    BacktestResult,
+    BacktestRow,
+    EvidenceOut,
+    Skipped,
+)
 from sitescore.config import BacktestCfg, BusinessProfile, Calendar, ModelConfig, Region
 from sitescore.datastore import TABLES, DataStore, NoDataAsOf
 
 log = logging.getLogger(__name__)
 
 CAVEATS = [
-    ("Revenue isn't public, so success is measured with proxies: survival, opening-hours "
-     "changes and (with Google Places) reviews per month and rating."),
+    ("Revenue isn't public, so success is measured with proxies: survival (a vote across "
+     "OpenStreetMap, Overture, Foursquare, ASIC business names and Google when available), "
+     "opening-hours changes and, with Google Places, reviews per month and rating."),
+    ("The free Foursquare snapshot is from Feb 2025 unless HF_TOKEN is set; it can only "
+     "speak for businesses that opened before then."),
     ("Opening dates discovered from OpenStreetMap are approximate: a business can be "
      "mapped weeks or months after it opens. Provide a CSV with exact dates to tighten this."),
     ("Businesses that opened and closed between two quarterly snapshots are never seen, "
@@ -47,7 +57,9 @@ def run_backtest(businesses: list[Business], cohort: str, store: DataStore,
     predictions = tuple(predictions)  # frozen before any outcome is read
 
     # --- Phase 2: what actually happened ----------------------------------------------
-    outcomes = observe([p.business for p in predictions], store, today)
+    outcomes = observe([p.business for p in predictions], store, today,
+                       bt.survival_evidence.model_dump(), bt.asic_match_window_months,
+                       bt.evidence_half_life_months)
     actual_scores = _actual_scores([outcomes[_key(p.business)] for p in predictions],
                                    bt.outcome_weights.model_dump())
 
@@ -65,6 +77,8 @@ def run_backtest(businesses: list[Business], cohort: str, store: DataStore,
             predicted_score=p.score, predicted_rank=int(pred_rank[i]),
             mature_monthly=p.mature_monthly, demand_only=p.demand_only,
             actual=Actual(still_open=o.still_open, status_source=o.status_source,
+                          survival_score=o.survival_score,
+                          evidence=[EvidenceOut(**e.__dict__) for e in o.evidence],
                           months_open=round(o.months_open, 1),
                           reviews_per_month=o.reviews_per_month, rating=o.rating,
                           hours_change=o.hours_change, notes=o.notes),
@@ -78,7 +92,7 @@ def run_backtest(businesses: list[Business], cohort: str, store: DataStore,
     known = np.array([a is not None for a in alive], dtype=bool)
     accuracy = _accuracy(pred[scored], base[scored], actual_scores[scored],
                          pred[known], base[known], alive[known].astype(bool))
-    sources = sorted({o.status_source for o in outcomes.values()}
+    sources = sorted({e.source for o in outcomes.values() for e in o.evidence}
                      | ({"google"} if any(o.reviews is not None for o in outcomes.values()) else set()))
     return BacktestResult(
         cohort=cohort, business_type=profile.id, run_on=today, score_months=bt.score_months,
@@ -101,7 +115,7 @@ def _ranks(values: np.ndarray) -> np.ndarray:
 def _actual_scores(outcomes: list[Outcome], weights: dict[str, float]) -> np.ndarray:
     """Weighted mean of standardised proxies; NaN where a business has none."""
     raw = {
-        "survival": [None if o.still_open is None else float(o.still_open) for o in outcomes],
+        "survival": [o.survival_score for o in outcomes],
         "reviews_per_month": [o.reviews_per_month for o in outcomes],
         "rating": [o.rating for o in outcomes],
         "hours_change": [o.hours_change for o in outcomes],

@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     google_places_api_key: str | None = Field(None, validation_alias="GOOGLE_PLACES_API_KEY")
     tfnsw_api_key: str | None = Field(None, validation_alias="TFNSW_API_KEY")
+    hf_token: str | None = Field(None, validation_alias="HF_TOKEN")
     region: str = Field("parramatta", validation_alias="SITESCORE_REGION")
     offline: bool = Field(False, validation_alias="SITESCORE_OFFLINE")
     force_mock: bool = Field(False, validation_alias="SITESCORE_FORCE_MOCK")

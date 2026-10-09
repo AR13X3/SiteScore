@@ -44,6 +44,7 @@ All keys are optional. `install` creates `.env` from `.env.example`.
 | Key | Needed for | Without it |
 |---|---|---|
 | `GOOGLE_PLACES_API_KEY` | Backtest ground truth: rating, review count, open/closed | Backtest uses OSM-only outcome proxies |
+| `HF_TOKEN` | Latest Foursquare Open Source Places (free Hugging Face account; accept the dataset terms) | Foursquare data comes from a public mirror whose newest release is Feb 2025 |
 | `TFNSW_API_KEY` | GTFS stop locations (bus stops) | Station patronage still works, since it needs no key |
 
 ABS, OpenStreetMap, NSW Planning Portal and Transport for NSW station patronage need no keys.
@@ -61,7 +62,10 @@ All sources are official or open data. Details and licences are in [config/sourc
 | OpenStreetMap (Overpass) | Competitors, anchor tenants, stations | Point; **quarterly historical snapshots** | ~900 points per snapshot |
 | NSW Planning Portal online DA data | Future residents from development applications | Application → lodged and determined events | 2,767 DAs with new dwellings |
 | NSW Spatial Services address points (Nominatim fallback) | Address search in the UI (`GET /api/geocode?q=`) | Address | live |
-| Google Places (optional) | Backtest outcome proxies only | Place | real adapter arrives with the backtest |
+| Google Places (optional) | Backtest outcomes only: reviews, rating, status | Place | needs a key |
+| Overture Maps Places | Backtest outcomes only: still listed? with what confidence | Place, monthly | 21.6k places |
+| Foursquare Open Source Places | Backtest outcomes only: date added, refreshed, closed | Place | 24.5k places (Feb 2025 snapshot) |
+| ASIC Business Names | Backtest outcomes only: name registered or cancelled | Business name | 8.8k matching names |
 
 `python run.py data` downloads about 140 MB the first time and caches everything under the raw folder. Re-runs reuse that cache.
 
@@ -179,23 +183,45 @@ python run.py backtest --cohort demo    # backtests/cohorts/demo.csv
 
    Tests plant future data and check that predictions don't move.
 3. **Then look at reality.** These signals count as actual performance:
-   - survival: still on OpenStreetMap, and not renamed or tagged disused
+   - **Survival**, as a weighted vote of every source that knows the business. The weights are in `config/backtest.yaml`, and the report lists each café's evidence.
+
+     | Source | What it says | Weight |
+     |---|---|---|
+     | OpenStreetMap | A mapper saw it removed, replaced or tagged disused | 2.0 |
+     | OpenStreetMap | Still on the map | 1.0 |
+     | Overture | Listed with a confidence score | 1.0 × confidence |
+     | Overture | Not listed | 0.4 (weak) |
+     | Foursquare | Date marked closed, or still listed | 1.0 |
+     | ASIC business names | A unique exact name registered around the opening is still registered, or cancelled | 0.75 |
+     | Google (with key) | Business status | 3.0 |
+
+     **Name changes:** a corrected name ("Picollo Me" → "Piccolo Me") counts as the same business, while a different business at the same spot counts as a replacement.
+
+     **Older data counts for less:** weights halve every 12 months since the data was collected, so the free Foursquare snapshot from February 2025 counts for about a third.
    - change in weekly opening hours
-   - with a Google Places key: reviews per month since opening, rating and Google's open/closed status
+   - with a Google Places key: reviews per month since opening and rating
 4. **Accuracy.** Four measures, each compared with a naive "foot traffic only" baseline:
    - share of pairs ranked correctly (50% = coin flip)
    - Spearman correlation
    - survival AUC (does the model rank survivors above closures?)
    - top-third vs bottom-third actual percentile
 
-**Real Parramatta results (9 Oct 2026, OSM-only outcomes):**
+**Real Parramatta results (10 Oct 2026, free outcome sources, no Google):**
 
 | Measure | Model | Foot traffic only |
 |---|---|---|
-| Pairs ranked correctly | 56% | 47% |
-| Survival AUC | 0.55 | 0.60 |
+| Pairs ranked correctly | 48% | 51% |
+| Survival AUC | 0.48 | 0.48 |
 
-That's 46 cafés, 4 of them closed. Without Google Places, most open cafés are tied on outcome, so this is weak evidence either way. Adding `GOOGLE_PLACES_API_KEY` and running `python run.py data --only google_places` gives reviews and ratings for each café (about 300 requests, capped in `config/sources.yaml`).
+46 cafés were scored, and the evidence vote marks 2 as closed:
+- **Koko 'n' Beans:** replaced by "XA Expresso"
+- **Mulberry Tree:** replaced by "The Chai Nook"
+
+OSM alone had said 4 closed. Two of those were cafés whose names were corrected on the map, not real closures.
+
+**So far, neither the model nor the baseline beats a coin flip.** Two closures are too few to judge anything. Among open cafés, the survival score mostly reflects how many datasets list a business, not how well it trades.
+
+The missing ingredient is a performance measure for businesses that are still open. Adding `GOOGLE_PLACES_API_KEY` and running `python run.py data --only google_places` adds reviews per month and rating (about 300 requests, capped in `config/sources.yaml`, and likely inside Google's free monthly allowance).
 
 ## Configuration
 

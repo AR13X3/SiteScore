@@ -118,6 +118,42 @@ google_places:
   cache_days: 30
   track_from: 2022-01-01
 
+overture_places:
+  title: Overture Maps Places
+  provider: Overture Maps Foundation (Meta, Microsoft, Foursquare, AllThePlaces and others)
+  licence: CDLA Permissive 2.0 / ODbL by source (see docs.overturemaps.org)
+  catalog: https://stac.overturemaps.org/catalog.json
+  s3: s3://overturemaps-us-west-2/release/{release}/theme=places/type=place/*
+  # Outcome data (status as of the latest monthly release); never a model input.
+  published_at: {rule: snapshot}
+  used_for: backtest outcomes (is the business still listed, with what confidence)
+
+foursquare_places:
+  title: Foursquare Open Source Places
+  provider: Foursquare
+  licence: Apache 2.0 (attribution; NOTICE.txt)
+  # Public mirror (no signup, but its newest release is Feb 2025). With HF_TOKEN
+  # set (free Hugging Face account, accept the dataset terms), the latest
+  # release is read from Hugging Face instead.
+  public_listing: https://data.source.coop/fused/fsq-os-places/
+  hf_dataset: foursquare/fsq-os-places
+  published_at: {rule: snapshot}
+  used_for: backtest outcomes (date added, last refreshed, date closed)
+
+asic_business_names:
+  title: ASIC Business Names Register
+  provider: Australian Securities and Investments Commission (data.gov.au)
+  licence: CC BY 3.0 AU
+  # The ZIP is renamed each month, so its link is looked up in the catalogue.
+  package_api: https://data.gov.au/data/api/3/action/package_show?id=asic-business-names
+  dataset: https://data.gov.au/data/dataset/asic-business-names
+  size_mb: 72
+  # Current extract: every registered name plus names deregistered in the last
+  # 12 months. No addresses, so only exact names registered around a business's
+  # opening date are trusted (see config/backtest.yaml).
+  published_at: {rule: fetched}
+  used_for: backtest outcomes (business name still registered or cancelled)
+
 geocoding:
   title: Address search
   provider: NSW Spatial Services, fallback OpenStreetMap Nominatim
