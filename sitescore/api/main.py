@@ -26,10 +26,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     load_model_config()
     load_business_types()
     load_region()
-    # First run with no data yet: generate mock tables so the demo always works.
+    # First run with no data yet: load the demo pack (real), then mock for any gaps,
+    # so the demo always works.
     store = app.dependency_overrides.get(get_store, get_store)()
     for r in ensure_tables(store):
-        log.warning("No data for '%s'; generated mock (%d rows)", r.table, r.rows)
+        if r.provenance == "real":
+            log.warning("No data for '%s'; loaded the demo pack (%d real rows)", r.table, r.rows)
+        else:
+            log.warning("No data for '%s'; generated mock (%d rows)", r.table, r.rows)
     yield
 
 
