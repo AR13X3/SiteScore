@@ -344,6 +344,7 @@ sitescore/
   api/           FastAPI app
 frontend/        web app: React + TypeScript, Leaflet map, ECharts
 backtests/       backtest cohorts (CSV)
+data/demo-pack/  snapshot of the processed real data (loaded on a fresh clone)
 tests/
 ```
 
