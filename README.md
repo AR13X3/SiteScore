@@ -119,6 +119,31 @@ potential customers × demographic fit × anchor boost × gravity share
 
 Our own price stays at the profile's price by default. The model also reports the price it would choose to maximise margin.
 
+### Uncertainty bands
+
+Each simulation draws the uncertain assumptions 300 times. The list and the distributions are in `config/model.yaml` under `montecarlo`:
+
+- spend per visit
+- participation and visit frequency per segment
+- ramp-up speed
+- distance decay
+- the pull of other options
+- price sensitivity
+- habit strength
+
+All candidate sites see the same draws. That makes "best in 94% of scenarios" a fair comparison. The chart shows the central estimate as a line and the P10–P90 range as a shaded band. Each site also gets its chance of a 36-month loss.
+
+Re-running the full model 300 × 5 times would take about a minute, so **fast mode** uses the model's exact factor structure instead:
+
+| Assumption | How fast mode applies it |
+|---|---|
+| Spend, participation, visit frequency | Exact rescaling |
+| Distance decay, pull of other options | The real choice model (Huff plus agents) is re-run on a small grid and interpolated |
+| Price sensitivity | The price game is re-solved on a grid |
+| Ramp-up and habit | Recomputed in closed form |
+
+At the central values, fast mode reproduces the base run exactly. Against full re-runs, its per-scenario error is about 1% (median), and the tests check both. Five sites × 300 scenarios take about 2 seconds. The UI shows the central estimate immediately and fades the bands in when they arrive.
+
 So comparing factors between two sites explains exactly why one out-earns the other. Each layer also returns a one-line summary and a detailed breakdown, for example:
 
 - which demographic features help or hurt

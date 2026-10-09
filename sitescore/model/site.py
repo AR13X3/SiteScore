@@ -43,6 +43,7 @@ class AgentOutcome:
     game: GameResult
     stores: StoreSet
     n_agents: int
+    model: ChoiceModel        # kept so Monte Carlo can re-solve the price game cheaply
 
 
 def run_agents(sx: float, sy: float, demand: DemandResult, fit: FitResult,
@@ -70,12 +71,31 @@ def run_agents(sx: float, sy: float, demand: DemandResult, fit: FitResult,
         captured=captured,
         our_price=float(game.prices_after[0]),
         ramp=sim.monthly_customers / steady if steady > 0 else np.ones(cfg.horizon_months),
-        sim=sim, game=game, stores=stores, n_agents=len(agents),
+        sim=sim, game=game, stores=stores, n_agents=len(agents), model=model,
     )
+
+
+@dataclass(frozen=True)
+class SiteAnalysis:
+    """Everything computed for one site (the result plus the internals Monte Carlo reuses)."""
+
+    result: SiteResult
+    sx: float
+    sy: float
+    demand: DemandResult
+    fit: FitResult
+    competition: CompetitionResult
+    agent: AgentOutcome | None
+    spend: SpendResult
 
 
 def evaluate_site(market: Market, site: Site, profile: BusinessProfile, cfg: ModelConfig,
                   region: Region) -> SiteResult:
+    return analyse_site(market, site, profile, cfg, region).result
+
+
+def analyse_site(market: Market, site: Site, profile: BusinessProfile, cfg: ModelConfig,
+                 region: Region) -> SiteAnalysis:
     xs, ys = project([site.lon], [site.lat], region.metric_crs)
     sx, sy = float(xs[0]), float(ys[0])
     demand = compute_demand(sx, sy, market, profile, cfg)
@@ -109,7 +129,7 @@ def evaluate_site(market: Market, site: Site, profile: BusinessProfile, cfg: Mod
     product = math.prod(layer.factor for layer in layers)
     assert math.isclose(product, spend.revenue, rel_tol=1e-6, abs_tol=1e-6), (product, spend.revenue)
 
-    return SiteResult(
+    result = SiteResult(
         site=site,
         business_type=profile.id,
         as_of=market.as_of,
@@ -122,6 +142,7 @@ def evaluate_site(market: Market, site: Site, profile: BusinessProfile, cfg: Mod
         layers=layers,
         data_used=[DataUsed(**a.__dict__) for a in market.data_used],
     )
+    return SiteAnalysis(result, sx, sy, demand, fit, comp, agent, spend)
 
 
 def _demand_layer(d: DemandResult) -> LayerResult:

@@ -18,6 +18,7 @@ from __future__ import annotations
 import calendar as cal
 import datetime as dt
 import math
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -69,8 +70,12 @@ def development_schedule(market: Market, cfg: ModelConfig) -> pd.DataFrame:
         return next(b.months for b in buckets if n <= b.max_dwellings)
 
     months = dev["new_dwellings"].map(build_months)
-    dev["completion"] = [pd.Timestamp(a) + pd.DateOffset(months=int(m))
-                         for a, m in zip(dev["approved"], months, strict=True)]
+    approved = pd.to_datetime(dev["approved"])
+    completion = pd.Series(pd.NaT, index=dev.index, dtype="datetime64[ns]")
+    for m in months.unique():  # one vectorised offset per build-time bucket
+        rows = months == m
+        completion[rows] = approved[rows] + pd.DateOffset(months=int(m))
+    dev["completion"] = completion
     return dev[dev["completion"] > pd.Timestamp(market.census_date)].reset_index(drop=True)
 
 
@@ -122,15 +127,34 @@ def visits_per_new_resident(sx: float, sy: float, schedule: pd.DataFrame, market
             * spec.visits_per_month)
 
 
-def project_site(result: SiteResult, market: Market, profile: BusinessProfile, cfg: ModelConfig,
-                 region_crs: str, calendar: Calendar, open_date: dt.date
-                 ) -> tuple[list[MonthPoint], LayerResult]:
+@dataclass(frozen=True)
+class MonthlyComponents:
+    """Pieces of the monthly path before ramp-up and the capacity cap.
+
+    Monte Carlo rescales these per draw instead of re-running the model.
+    """
+
+    months: list[dt.date]
+    base_by_segment: dict[str, np.ndarray]  # mature visits x seasonality, per segment
+    development: np.ndarray                 # visits from new residents (x seasonality)
+    ramp: np.ndarray
+    atv: float
+    capacity: float | None
+    schedule: pd.DataFrame
+    coef: np.ndarray
+    residents: np.ndarray
+    seasonal: dict[str, np.ndarray]
+
+
+def monthly_components(result: SiteResult, market: Market, profile: BusinessProfile,
+                       cfg: ModelConfig, region_crs: str, calendar: Calendar,
+                       open_date: dt.date) -> MonthlyComponents:
     n = cfg.horizon_months
     months = month_starts(open_date, n)
     # Agent-simulated ramp when available (awareness + habits), else the profile curve.
     ramp = np.array(result.ramp[:n]) if result.ramp else ramp_curve(n, profile.dynamics)
     seasonal = seasonal_factors(months, profile, calendar)
-    base = sum(result.segment_visits.get(seg, 0.0) * seasonal[seg] for seg in SEGMENTS)
+    base = {seg: result.segment_visits.get(seg, 0.0) * seasonal[seg] for seg in SEGMENTS}
 
     site: Site = result.site
     xs, ys = project([site.lon], [site.lat], region_crs)
@@ -142,21 +166,33 @@ def project_site(result: SiteResult, market: Market, profile: BusinessProfile, c
                                    uplift)
     residents = new_residents(schedule, months, cfg)
     dev = (coef @ residents) * seasonal["residents"] if len(coef) else np.zeros(n)
+    return MonthlyComponents(months, base, dev, ramp, result.avg_transaction_value,
+                             profile.spend.capacity_visits_per_month, schedule, coef, residents,
+                             seasonal)
 
-    uncapped = (base + dev) * ramp
-    cap = profile.spend.capacity_visits_per_month
-    visits = np.minimum(uncapped, cap) if cap else uncapped
-    kept = np.divide(visits, uncapped, out=np.ones(n), where=uncapped > 0)
-    atv = result.avg_transaction_value
-    revenue = visits * atv
-    dev_revenue = dev * ramp * kept * atv
 
+def assemble(base: np.ndarray, development: np.ndarray, ramp: np.ndarray, atv: np.ndarray | float,
+             capacity: float | None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """(visits, revenue, development revenue) per month. Broadcasts over leading axes."""
+    uncapped = (base + development) * ramp
+    visits = np.minimum(uncapped, capacity) if capacity else uncapped
+    kept = np.divide(visits, uncapped, out=np.ones_like(uncapped), where=uncapped > 0)
+    atv = np.asarray(atv)[..., None] if np.ndim(atv) else atv
+    return visits, visits * atv, development * ramp * kept * atv
+
+
+def project_site(result: SiteResult, market: Market, profile: BusinessProfile, cfg: ModelConfig,
+                 region_crs: str, calendar: Calendar, open_date: dt.date
+                 ) -> tuple[list[MonthPoint], LayerResult]:
+    c = monthly_components(result, market, profile, cfg, region_crs, calendar, open_date)
+    visits, revenue, dev_revenue = assemble(sum(c.base_by_segment.values()), c.development,
+                                            c.ramp, c.atv, c.capacity)
     points = [MonthPoint(month=m, revenue=float(revenue[i]), visits=float(visits[i]),
                          profit=monthly_profit(float(revenue[i]), profile.costs),
                          development_revenue=float(dev_revenue[i]))
-              for i, m in enumerate(months)]
-    return points, _dynamics_layer(result, revenue, dev_revenue, ramp, seasonal, months, schedule,
-                                   coef, residents, profile, n)
+              for i, m in enumerate(c.months)]
+    return points, _dynamics_layer(result, revenue, dev_revenue, c.ramp, c.seasonal, c.months,
+                                   c.schedule, c.coef, c.residents, profile, cfg.horizon_months)
 
 
 def _dynamics_layer(result: SiteResult, revenue: np.ndarray, dev_revenue: np.ndarray,

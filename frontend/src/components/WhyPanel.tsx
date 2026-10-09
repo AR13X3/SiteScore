@@ -1,6 +1,12 @@
-import { money, signedPct } from "../lib/format";
+import { money, pct, signedPct } from "../lib/format";
 import { siteColor } from "../lib/theme";
-import type { CandidateSite, SimulationResult, SiteExplanation, SiteSimulation } from "../lib/types";
+import type {
+  CandidateSite,
+  SimulationResult,
+  SiteExplanation,
+  SiteSimulation,
+  SiteUncertainty,
+} from "../lib/types";
 
 interface Props {
   result: SimulationResult;
@@ -11,6 +17,7 @@ interface Props {
 export function WhyPanel({ result, sites, dark }: Props) {
   const slotOf = new Map(sites.map((s) => [s.id, s.slot]));
   const simOf = new Map(result.sites.map((s) => [s.site.id, s]));
+  const oddsOf = new Map(result.uncertainty?.sites.map((u) => [u.site_id, u]));
   // One scale for every card so bar lengths compare across sites (log ratio = symmetric).
   const maxLog = Math.max(
     0.05,
@@ -24,6 +31,7 @@ export function WhyPanel({ result, sites, dark }: Props) {
           key={e.site_id}
           explanation={e}
           sim={simOf.get(e.site_id)!}
+          odds={oddsOf.get(e.site_id)}
           color={siteColor(slotOf.get(e.site_id) ?? 0, dark)}
           number={(slotOf.get(e.site_id) ?? 0) + 1}
           maxLog={maxLog}
@@ -41,9 +49,10 @@ interface CardProps {
   number: number;
   maxLog: number;
   compare: boolean;
+  odds?: SiteUncertainty;
 }
 
-function WhyCard({ explanation: e, sim, color, number, maxLog, compare }: CardProps) {
+function WhyCard({ explanation: e, sim, color, number, maxLog, compare, odds }: CardProps) {
   const layers = [...sim.mature.layers, sim.dynamics];
   return (
     <article className="card why-card">
@@ -59,6 +68,23 @@ function WhyCard({ explanation: e, sim, color, number, maxLog, compare }: CardPr
         </div>
       </header>
       <p className="why-headline">{e.headline}</p>
+      {odds && (
+        <div className="odds">
+          <span>
+            Range <strong>{money(odds.total_revenue.p10)}–{money(odds.total_revenue.p90)}</strong>
+          </span>
+          {compare && (
+            <span>
+              Best in <strong>{pct(odds.prob_best)}</strong> of scenarios
+            </span>
+          )}
+          {odds.prob_loss !== null && (
+            <span>
+              Chance of a 36-month loss <strong>{pct(odds.prob_loss)}</strong>
+            </span>
+          )}
+        </div>
+      )}
 
       {compare && e.contributions.length > 0 && (
         <div className="contrib" role="table" aria-label="Effect of each layer vs the average candidate">

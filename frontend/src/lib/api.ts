@@ -23,6 +23,7 @@ export interface SimulateRequest {
   sites: Site[];
   as_of?: string;
   open_date?: string;
+  uncertainty?: boolean;
 }
 
 export const api = {

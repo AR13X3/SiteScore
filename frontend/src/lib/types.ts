@@ -76,6 +76,43 @@ export interface SiteExplanation {
   contributions: Contribution[];
 }
 
+export interface Band {
+  p10: number[];
+  p50: number[];
+  p90: number[];
+}
+
+export interface Range3 {
+  p10: number;
+  p50: number;
+  p90: number;
+}
+
+export interface SiteUncertainty {
+  site_id: string;
+  revenue: Band;
+  total_revenue: Range3;
+  total_profit: Range3 | null;
+  prob_best: number;
+  prob_loss: number | null;
+}
+
+export interface ParameterRange {
+  path: string;
+  base: number;
+  p10: number;
+  p90: number;
+}
+
+export interface Uncertainty {
+  n_runs: number;
+  mode: string;
+  seed: number;
+  percentiles: number[];
+  parameters: ParameterRange[];
+  sites: SiteUncertainty[];
+}
+
 export interface SimulationResult {
   business_type: string;
   as_of: string;
@@ -86,6 +123,7 @@ export interface SimulationResult {
   ranking: string[];
   explanations: SiteExplanation[];
   data_used: DataUsed[];
+  uncertainty: Uncertainty | null;
 }
 
 export interface BusinessType {

@@ -43,6 +43,8 @@ def evaluate(req: EvaluateRequest, store: StoreDep) -> list[SiteResult]:
 class SimulateRequest(EvaluateRequest):
     open_date: dt.date | None = Field(
         None, description="Opening month (default: the month after as_of)")
+    uncertainty: bool = Field(
+        False, description="Add Monte Carlo P10/P50/P90 bands and each site's chance of being best")
 
 
 @router.post("/simulate", response_model=SimulationResult)
@@ -60,7 +62,8 @@ def simulate_sites(req: SimulateRequest, store: StoreDep) -> SimulationResult:
         raise HTTPException(422, str(exc)) from exc
     region = load_region()
     return simulate(market, _with_ids(req.sites), profiles[req.business_type],
-                    load_model_config(), region, load_calendar(region.state), req.open_date)
+                    load_model_config(), region, load_calendar(region.state), req.open_date,
+                    uncertainty=req.uncertainty)
 
 
 def _with_ids(sites: list[Site]) -> list[Site]:

@@ -89,6 +89,39 @@ class SiteExplanation(BaseModel):
     contributions: list[Contribution]
 
 
+class Band(BaseModel):
+    """Monthly percentiles across Monte Carlo runs (P10 = pessimistic, P90 = optimistic)."""
+
+    p10: list[float]
+    p50: list[float]
+    p90: list[float]
+
+
+class ParameterRange(BaseModel):
+    path: str      # e.g. profile.segments.workers.participation
+    base: float
+    p10: float
+    p90: float
+
+
+class SiteUncertainty(BaseModel):
+    site_id: str
+    revenue: Band
+    total_revenue: dict[str, float]          # p10 / p50 / p90 over the horizon
+    total_profit: dict[str, float] | None
+    prob_best: float                         # share of runs where this site earns the most
+    prob_loss: float | None                  # share of runs with negative total profit
+
+
+class Uncertainty(BaseModel):
+    n_runs: int
+    mode: str
+    seed: int
+    percentiles: list[int]
+    parameters: list[ParameterRange]
+    sites: list[SiteUncertainty]
+
+
 class SimulationResult(BaseModel):
     business_type: str
     as_of: dt.date
@@ -96,6 +129,7 @@ class SimulationResult(BaseModel):
     horizon_months: int
     baseline_total_revenue: float  # geometric mean of candidates' 36-month totals
     sites: list[SiteSimulation]
-    ranking: list[str]  # site ids, best first
+    ranking: list[str]  # site ids, best first (base case)
     explanations: list[SiteExplanation]
     data_used: list[DataUsed]
+    uncertainty: Uncertainty | None = None

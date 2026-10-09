@@ -81,12 +81,17 @@ game:
   damping: 0.5              # each round moves prices this far toward the best response
 
 # --- Layer 8: Monte Carlo ----------------------------------------------------
-# Each run samples every parameter below, then reruns the model.
+# Each run samples every parameter below; P10/P50/P90 come from the spread.
+# All candidate sites see the same draws, so "chance this site is best" is fair.
 # Paths: profile.* = active business profile, model.* = this file.
 # Distributions: normal_rel (sd as fraction of base value), uniform, triangular.
+# mode: fast  re-applies each draw to the base run's layer factors (exact at the
+#             central values; the price game is re-solved on an elasticity grid)
+#       full  re-runs the whole model per draw (slow; for validation)
 montecarlo:
   n_runs: 300
   seed: 7
+  mode: fast
   percentiles: [10, 50, 90]
   parameters:
     profile.spend.avg_transaction_value: {dist: normal_rel, sd: 0.10}

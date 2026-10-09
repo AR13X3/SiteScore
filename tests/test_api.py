@@ -52,6 +52,15 @@ def test_simulate_returns_36_months_ranking_and_why(client):
     assert all(e["headline"] for e in r["explanations"])
 
 
+def test_simulate_with_uncertainty_bands(client):
+    r = client.post("/api/simulate", json={"as_of": "2026-06-01", "uncertainty": True,
+                                           "sites": [CBD, HARRIS_PARK]}).json()
+    u = r["uncertainty"]
+    assert u["n_runs"] > 0 and len(u["sites"]) == 2
+    assert all(len(s["revenue"]["p10"]) == 36 for s in u["sites"])
+    assert sum(s["prob_best"] for s in u["sites"]) == pytest.approx(1.0)
+
+
 def test_unknown_business_type_is_404(client):
     resp = client.post("/api/evaluate", json={"business_type": "bowling", "sites": [CBD]})
     assert resp.status_code == 404

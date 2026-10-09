@@ -165,7 +165,7 @@ select {
 .tt-name { color: var(--text-secondary); }
 
 /* ---- Why ----------------------------------------------------------------- */
-.why-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.why-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 16px; }
 .why-card { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
 .why-head { display: flex; align-items: center; gap: 8px; }
 .why-head h3 { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -175,7 +175,7 @@ select {
 .why-total .muted { font-size: 11px; }
 .why-headline { margin: 0; color: var(--text-secondary); }
 .contrib { display: flex; flex-direction: column; gap: 4px; }
-.contrib-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) 52px; align-items: center; gap: 8px; }
+.contrib-row { display: grid; grid-template-columns: minmax(96px, 150px) minmax(0, 1fr) 48px; align-items: center; gap: 8px; }
 .contrib-label { font-size: 12px; color: var(--text-secondary); }
 .contrib-track { position: relative; height: 12px; }
 .contrib-axis { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--grid); }
@@ -187,3 +187,14 @@ select {
 .why-details summary { cursor: pointer; color: var(--text-secondary); font-size: 13px; }
 .why-details ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .placeholder { display: grid; place-items: center; }
+
+/* ---- Uncertainty ------------------------------------------------------- */
+.site-total { display: inline-flex; align-items: baseline; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.site-range { flex-basis: 100%; text-align: right; font-size: 11px; font-weight: 400; color: var(--text-muted); }
+.tt-range { color: var(--text-muted); font-size: 11px; }
+.odds { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-secondary); }
+.assumptions { margin: 4px 8px 4px; font-size: 12px; }
+.assumptions summary { cursor: pointer; color: var(--text-secondary); }
+.assumptions ul { list-style: none; padding: 0; margin: 8px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 4px 16px; }
+.assumptions li { display: flex; justify-content: space-between; gap: 8px; }
+.assumptions li span:first-child::first-letter { text-transform: uppercase; }

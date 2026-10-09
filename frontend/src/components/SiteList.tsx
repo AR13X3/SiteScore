@@ -15,6 +15,7 @@ interface Props {
 export function SiteList({ sites, result, dark, onRename, onRemove, onDemo, onClear }: Props) {
   const totals = new Map(result?.sites.map((s) => [s.site.id, s.total_revenue]));
   const ranks = new Map(result?.explanations.map((e) => [e.site_id, e.rank]));
+  const odds = new Map(result?.uncertainty?.sites.map((u) => [u.site_id, u]));
 
   if (sites.length === 0) {
     return (
@@ -46,6 +47,11 @@ export function SiteList({ sites, result, dark, onRename, onRemove, onDemo, onCl
               {totals.has(s.id) ? (
                 <>
                   <span className="muted">#{ranks.get(s.id)}</span> {money(totals.get(s.id)!)}
+                  {odds.has(s.id) && (
+                    <span className="site-range">
+                      {money(odds.get(s.id)!.total_revenue.p10)}–{money(odds.get(s.id)!.total_revenue.p90)}
+                    </span>
+                  )}
                 </>
               ) : (
                 <span className="muted">…</span>

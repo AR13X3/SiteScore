@@ -254,7 +254,8 @@ class GameCfg(Strict):
 class MonteCarloCfg(Strict):
     n_runs: int = Field(ge=1)
     seed: int
-    percentiles: list[int]
+    mode: Literal["fast", "full"] = "fast"
+    percentiles: tuple[int, int, int] = (10, 50, 90)
     parameters: dict[str, Distribution]
 
 
@@ -432,3 +433,11 @@ def get_path(data: dict, path: str) -> Any:
     for part in path.split("."):
         node = node[part]
     return node
+
+
+def set_path(data: dict, path: str, value: Any) -> None:
+    *parents, last = path.split(".")
+    node: Any = data
+    for part in parents:
+        node = node[part]
+    node[last] = value

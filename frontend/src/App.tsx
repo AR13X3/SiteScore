@@ -5,7 +5,7 @@ import { SiteList } from "./components/SiteList";
 import { SiteMap } from "./components/SiteMap";
 import { WhyPanel } from "./components/WhyPanel";
 import { api } from "./lib/api";
-import { money } from "./lib/format";
+import { money, parameterLabel, pct } from "./lib/format";
 import { MAX_SITES, useDarkMode } from "./lib/theme";
 import type { BusinessType, CandidateSite, Region, SimulationResult, TableStatus } from "./lib/types";
 
@@ -16,6 +16,7 @@ const DEMO_SITES: Omit<CandidateSite, "id" | "slot">[] = [
 ];
 
 let nextId = 1;
+const fmt = (v: number) => (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2));
 const newId = () => `s${nextId++}`;
 
 function freeSlot(sites: CandidateSite[]): number {
@@ -32,6 +33,7 @@ export default function App() {
   const [sites, setSites] = useState<CandidateSite[]>([]);
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [bandsLoading, setBandsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestSeq = useRef(0);
 
@@ -45,27 +47,38 @@ export default function App() {
       .catch((e: Error) => setError(`Can't reach the SiteScore API: ${e.message}`));
   }, []);
 
-  // Re-simulate shortly after any change; ignore responses from superseded requests.
+  // Re-simulate shortly after any change: first the central estimate (fast), then the
+  // same request with Monte Carlo bands. Responses from superseded requests are ignored.
   useEffect(() => {
     if (sites.length === 0) {
       setResult(null);
       return;
     }
     const seq = ++requestSeq.current;
-    const timer = setTimeout(() => {
+    const current = () => seq === requestSeq.current;
+    const timer = setTimeout(async () => {
+      const body = {
+        business_type: businessType,
+        sites: sites.map(({ id, label, lat, lon }) => ({ id, label, lat, lon })),
+      };
       setLoading(true);
-      api
-        .simulate({
-          business_type: businessType,
-          sites: sites.map(({ id, label, lat, lon }) => ({ id, label, lat, lon })),
-        })
-        .then((r) => {
-          if (seq !== requestSeq.current) return;
-          setResult(r);
-          setError(null);
-        })
-        .catch((e: Error) => seq === requestSeq.current && setError(e.message))
-        .finally(() => seq === requestSeq.current && setLoading(false));
+      try {
+        const base = await api.simulate(body);
+        if (!current()) return;
+        setResult(base);
+        setError(null);
+        setLoading(false);
+        setBandsLoading(true);
+        const withBands = await api.simulate({ ...body, uncertainty: true });
+        if (current()) setResult(withBands);
+      } catch (e) {
+        if (current()) setError((e as Error).message);
+      } finally {
+        if (current()) {
+          setLoading(false);
+          setBandsLoading(false);
+        }
+      }
     }, 350);
     return () => clearTimeout(timer);
   }, [sites, businessType]);
@@ -96,9 +109,19 @@ export default function App() {
     const ids = new Set(sites.map((s) => s.id));
     const kept = result.sites.filter((s) => ids.has(s.site.id));
     if (!kept.length) return null;
-    return { ...result, sites: kept, explanations: result.explanations.filter((e) => ids.has(e.site_id)) };
+    const uncertainty = result.uncertainty && {
+      ...result.uncertainty,
+      sites: result.uncertainty.sites.filter((u) => ids.has(u.site_id)),
+    };
+    return {
+      ...result,
+      sites: kept,
+      explanations: result.explanations.filter((e) => ids.has(e.site_id)),
+      uncertainty,
+    };
   }, [result, sites]);
   const winner = current?.explanations[0];
+  const winnerOdds = current?.uncertainty?.sites.find((u) => u.site_id === winner?.site_id);
 
   return (
     <div className="app">
@@ -165,8 +188,14 @@ export default function App() {
               <span className="muted">Best over 36 months</span>
               <strong>{current.sites.find((s) => s.site.id === winner.site_id)?.site.label}</strong>
               <span>
-                {money(winner.total_revenue)} · opens {new Date(`${current.open_date}T00:00:00`).toLocaleDateString("en-AU", { month: "long", year: "numeric" })}
+                {money(winner.total_revenue)} · opens{" "}
+                {new Date(`${current.open_date}T00:00:00`).toLocaleDateString("en-AU", { month: "long", year: "numeric" })}
               </span>
+              {winnerOdds && current.uncertainty && (
+                <span className="muted">
+                  Best in {pct(winnerOdds.prob_best)} of {current.uncertainty.n_runs} scenarios
+                </span>
+              )}
             </div>
           )}
         </aside>
@@ -176,10 +205,31 @@ export default function App() {
             <div className="card-head">
               <h2>Projected monthly revenue</h2>
               <span className="muted">
-                Median scenario · ramp-up, seasons and approved developments included · data as of {current.as_of}
+                Line: central estimate ·{" "}
+                {current.uncertainty
+                  ? `shaded: 80% of ${current.uncertainty.n_runs} scenarios (P10–P90)`
+                  : bandsLoading
+                    ? "running 300 scenarios for the range…"
+                    : "no range"}{" "}
+                · includes ramp-up, seasons and approved developments · data as of {current.as_of}
               </span>
             </div>
             <RevenueChart result={current} sites={sites} dark={dark} />
+            {current.uncertainty && (
+              <details className="assumptions">
+                <summary>Assumptions varied in the scenarios</summary>
+                <ul>
+                  {current.uncertainty.parameters.map((p) => (
+                    <li key={p.path}>
+                      <span>{parameterLabel(p.path)}</span>
+                      <span className="muted">
+                        {fmt(p.base)} (P10–P90: {fmt(p.p10)}–{fmt(p.p90)})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </section>
         )}
 

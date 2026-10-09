@@ -1,7 +1,9 @@
-"""Compare candidate sites over the horizon: evaluate, project monthly, explain.
+"""Compare candidate sites over the horizon: evaluate, project monthly, explain, add bands.
 
 Each site is simulated as if it were the only new store opening (the candidates
-are alternatives, not a network).
+are alternatives, not a network). The base case (every assumption at its central
+value) drives the ranking and the "why"; Monte Carlo adds P10/P50/P90 bands and
+each site's chance of being the best.
 """
 
 from __future__ import annotations
@@ -9,10 +11,11 @@ from __future__ import annotations
 import datetime as dt
 
 from sitescore.config import BusinessProfile, Calendar, ModelConfig, Region
-from sitescore.model.dynamics import project_site
+from sitescore.model.dynamics import monthly_components, project_site
 from sitescore.model.explain import explain
 from sitescore.model.market import Market
-from sitescore.model.site import evaluate_site
+from sitescore.model.montecarlo import run_uncertainty
+from sitescore.model.site import analyse_site
 from sitescore.model.types import DataUsed, SimulationResult, Site, SiteSimulation
 
 
@@ -22,23 +25,27 @@ def default_open_date(as_of: dt.date) -> dt.date:
 
 
 def simulate(market: Market, sites: list[Site], profile: BusinessProfile, cfg: ModelConfig,
-             region: Region, calendar: Calendar, open_date: dt.date | None = None
-             ) -> SimulationResult:
+             region: Region, calendar: Calendar, open_date: dt.date | None = None,
+             uncertainty: bool = False, n_runs: int | None = None) -> SimulationResult:
     open_date = open_date or default_open_date(market.as_of)
     if open_date < market.as_of:
         raise ValueError("open_date must not be before the as-of date")
-    sims = []
+    sims, analyses, components = [], [], []
     for site in sites:
-        mature = evaluate_site(market, site, profile, cfg, region)
-        months, dynamics = project_site(mature, market, profile, cfg, region.metric_crs,
+        analysis = analyse_site(market, site, profile, cfg, region)
+        months, dynamics = project_site(analysis.result, market, profile, cfg, region.metric_crs,
                                         calendar, open_date)
         profits = [m.profit for m in months]
         sims.append(SiteSimulation(
-            site=site, mature=mature, months=months,
+            site=site, mature=analysis.result, months=months,
             total_revenue=sum(m.revenue for m in months),
             total_profit=None if profits[0] is None else sum(profits),
             dynamics=dynamics,
         ))
+        analyses.append(analysis)
+        if uncertainty:
+            components.append(monthly_components(analysis.result, market, profile, cfg,
+                                                 region.metric_crs, calendar, open_date))
     explanations, baseline = explain(sims)
     return SimulationResult(
         business_type=profile.id,
@@ -50,4 +57,6 @@ def simulate(market: Market, sites: list[Site], profile: BusinessProfile, cfg: M
         ranking=[e.site_id for e in explanations],
         explanations=explanations,
         data_used=[DataUsed(**a.__dict__) for a in market.data_used],
+        uncertainty=run_uncertainty(analyses, components, market, profile, cfg, region, calendar,
+                                    open_date, n_runs) if uncertainty else None,
     )
