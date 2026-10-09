@@ -1,0 +1,80 @@
+# Business profile: gym (DRAFT: structure is complete, numbers need validation).
+# Revenue is membership-based, so one "visit" = one monthly membership payment.
+
+id: gym
+name: Gym
+description: 24/7-style fitness club, monthly memberships.
+status: draft
+
+competitors:
+  - {tags: {leisure: fitness_centre}, weight: 1.0}
+  - {tags: {leisure: sports_centre}, weight: 0.4}
+
+anchors:
+  radius_m: 300
+  items:
+    - {tags: {shop: supermarket}, weight: 1.0}
+    - {tags: {railway: station}, weight: 0.8}
+    - {tags: {office: "*"}, weight: 0.1}
+  max_boost: 0.15
+
+segments:
+  residents:
+    participation: 0.16          # adults with a gym membership (assumption)
+    visits_per_month: 1          # one membership payment per month
+    max_walk_minutes: 15
+    fit_applies: true
+  workers:
+    participation: 0.04          # workers who join a gym near work (assumption)
+    visits_per_month: 1
+    max_walk_minutes: 8
+    fit_applies: false
+  commuters:
+    participation: 0.0
+    visits_per_month: 1
+    max_walk_minutes: 4
+    fit_applies: false
+
+dayparts:
+  - {name: early,   hours: [5, 9],   trade_share: 0.40, presence: {residents: 1.0, workers: 0.6, commuters: 0.0}}
+  - {name: midday,  hours: [11, 14], trade_share: 0.15, presence: {residents: 0.5, workers: 1.0, commuters: 0.0}}
+  - {name: evening, hours: [17, 21], trade_share: 0.45, presence: {residents: 1.0, workers: 0.5, commuters: 0.0}}
+weekend_trade_share: 0.20
+weekend_presence: {residents: 1.0, workers: 0.1, commuters: 0.0}
+
+fit:
+  strength: 0.30
+  clip: [0.65, 1.45]
+  features:
+    age_25_34_share:             {weight: 0.35, why: "Peak gym-membership age"}
+    age_15_24_share:             {weight: 0.20, why: "High participation, price sensitive"}
+    median_income_personal_weekly: {weight: 0.25, why: "Can afford a membership"}
+    dwelling_apartment_share:    {weight: 0.05, why: "Less home-gym space"}
+    age_65_plus_share:           {weight: -0.15, why: "Low membership rates"}
+
+our_store:
+  attractiveness: 1.0
+  quality: 0.0
+
+pricing:
+  reference_price: 65.00         # monthly membership (assumption)
+  our_price: 65.00
+  price_range: [40.00, 95.00]
+  unit_cost: 6.00
+
+spend:
+  avg_transaction_value: 65.00
+  atv_price_elasticity: 1.0
+  capacity_visits_per_month: 2500    # membership cap for a ~1,000 m2 club (assumption)
+
+costs:
+  rent_per_month: 16000
+  wages_per_month: 14000
+  cogs_share: 0.04
+  other_fixed_per_month: 7000
+
+dynamics:
+  ramp_start_share: 0.30
+  ramp_months_to_90pct: 12
+  seasonality: [1.06, 1.05, 1.02, 1.00, 0.99, 0.97, 0.97, 0.98, 1.00, 1.00, 0.99, 0.97]
+  school_holiday_effect: {residents: -0.03, workers: -0.05, commuters: 0.0}

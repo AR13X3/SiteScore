@@ -1,0 +1,98 @@
+# Data sources. Every source records when its data became public
+# (published_at) so the model can be run "as of" any past date without
+# seeing data that didn't exist yet. All sources are official or open.
+#
+# published_at rules:
+#   fixed      - one date for the whole release (e.g. a Census)
+#   per_record - each row carries its own date (e.g. monthly patronage + lag)
+#   snapshot   - the date the snapshot describes (e.g. OSM state on a date)
+#   fetched    - the date we downloaded it (no history available)
+
+abs_census_gcp:
+  title: ABS Census 2021 General Community Profile (SA1, NSW)
+  provider: Australian Bureau of Statistics
+  licence: CC BY 4.0
+  url: https://www.abs.gov.au/census/find-census-data/datapacks/download/2021_GCP_SA1_for_NSW_short-header.zip
+  size_mb: 125
+  published_at: {rule: fixed, date: 2022-06-28}      # Census first release
+  valid_from: 2021-08-10                              # Census night
+  used_for: residents, age, income, household and dwelling mix
+
+abs_census_wpp:
+  title: ABS Census 2021 Working Population Profile (SA2, NSW)
+  provider: Australian Bureau of Statistics
+  licence: CC BY 4.0
+  # Finest geography published as a DataPack is SA2; the pipeline spreads
+  # workers onto commercial/industrial/education/health mesh blocks.
+  url: https://www.abs.gov.au/census/find-census-data/datapacks/download/2021_WPP_SA2_for_NSW_short-header.zip
+  size_mb: 10
+  published_at: {rule: fixed, date: 2022-10-12}      # Census second release (employment)
+  valid_from: 2021-08-10
+  used_for: workers by place of work
+
+abs_boundaries:
+  title: ABS ASGS Edition 3 boundaries (SA1, SA2, mesh blocks, LGA)
+  provider: Australian Bureau of Statistics
+  licence: CC BY 4.0
+  url: https://geo.abs.gov.au/arcgis/rest/services/ASGS2021
+  published_at: {rule: fixed, date: 2021-07-20}
+  valid_from: 2021-07-01
+  used_for: geometry for Census areas; mesh-block land-use category
+
+tfnsw_station_usage:
+  title: Train, Metro and Light Rail Station Entries and Exits (monthly)
+  provider: Transport for NSW Open Data Hub
+  licence: CC BY 4.0
+  dataset: https://opendata.transport.nsw.gov.au/dataset/train-station-entries-and-exits-data
+  resources:
+    - https://opendata.transport.nsw.gov.au/data/dataset/3977df59-a1fa-422e-91ff-cfaeac355cc9/resource/0292414e-8f70-4ee3-a61b-c9749182fe6f/download/monthly_usage_pattern_train_data-june-2024.csv
+    - https://opendata.transport.nsw.gov.au/data/dataset/3977df59-a1fa-422e-91ff-cfaeac355cc9/resource/c0396b43-8b5f-4243-b49d-ed9fc813005b/download/train-station-entries-and-exits-data-from-july-2024-to-oct-2024.csv
+    - https://opendata.transport.nsw.gov.au/data/dataset/3977df59-a1fa-422e-91ff-cfaeac355cc9/resource/f8bb2918-0540-4bb3-9ccf-f7aef04d4249/download/entry_exit.csv
+  size_mb: 4
+  published_at: {rule: per_record, lag_days: 45}     # month end + typical publication lag
+  used_for: commuter foot traffic at stations
+  needs_key: false
+
+osm:
+  title: OpenStreetMap (via Overpass API)
+  provider: OpenStreetMap contributors
+  licence: ODbL 1.0
+  endpoints:
+    - https://overpass-api.de/api/interpreter
+    - https://overpass.private.coffee/api/interpreter
+  # Overpass can return the map exactly as it was on a past date ([date:...]),
+  # so competitor sets are genuinely historical. Caveat: OSM was less complete
+  # in earlier years, so older snapshots slightly undercount competitors.
+  published_at: {rule: snapshot}
+  used_for: competitors, anchor tenants, stations, schools; backtest cohort discovery
+  min_seconds_between_requests: 5
+
+planning_da:
+  title: NSW Planning Portal - Online DA data
+  provider: NSW Department of Planning, Housing and Infrastructure
+  licence: CC BY 4.0
+  url: https://api.apps1.nsw.gov.au/eplanning/data/v0/OnlineDA
+  published_at: {rule: per_record}                    # lodgement / determination dates
+  used_for: approved developments adding future residents
+  needs_key: false
+
+google_places:
+  title: Google Places API (New)
+  provider: Google Maps Platform
+  licence: Google Maps Platform Terms (limited caching; place IDs may be stored)
+  url: https://places.googleapis.com/v1/places:searchText
+  published_at: {rule: fetched}
+  # Ground truth for backtests only. Never a model input, because ratings and
+  # review counts are only available as of today (that would leak the outcome).
+  used_for: backtest outcome proxies (rating, review count, business status)
+  needs_key: true
+  env_key: GOOGLE_PLACES_API_KEY
+
+geocoding:
+  title: Address search
+  provider: NSW Spatial Services, fallback OpenStreetMap Nominatim
+  licence: CC BY 4.0 (NSW Spatial Services); ODbL 1.0 (Nominatim)
+  url: https://portal.spatial.nsw.gov.au/server/rest/services/NSW_Geocoded_Addressing_Theme/FeatureServer
+  fallback_url: https://nominatim.openstreetmap.org/search
+  published_at: {rule: fetched}
+  used_for: turning typed addresses into coordinates

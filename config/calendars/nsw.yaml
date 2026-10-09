@@ -1,0 +1,22 @@
+# Calendar effects for NSW, used by the time-dynamics layer.
+#
+# The model runs monthly, so school holidays are expressed as the typical
+# fraction of each month that falls in NSW public-school holidays.
+# Pattern: summer break (mid-Dec to end-Jan), plus ~2-week breaks in
+# April, July and late Sep/early Oct.
+# Source: NSW Department of Education term dates (education.nsw.gov.au),
+# averaged over 2022-2026. Replace with exact dates if you need weekly precision.
+
+school_holiday_fraction:
+  1: 0.90
+  2: 0.00
+  3: 0.00
+  4: 0.50
+  5: 0.00
+  6: 0.00
+  7: 0.50
+  8: 0.00
+  9: 0.15
+  10: 0.35
+  11: 0.00
+  12: 0.40

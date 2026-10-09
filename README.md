@@ -1,0 +1,98 @@
+# SiteScore
+
+**Pick a business type and 2–5 candidate addresses. SiteScore simulates each site and projects monthly revenue over 36 months, with P10/P50/P90 bands, and explains why each site wins or loses.**
+
+Built at Hack48 Sydney. The first region is the City of Parramatta and the first business type is café. Gym and childcare are drafts, defined in config only.
+
+## Quick start
+
+Requires Python 3.11+ and Node.js 20+.
+
+```bash
+python run.py install    # one-time: virtualenv, dependencies, frontend build
+python run.py start      # opens http://127.0.0.1:8000
+```
+
+Other commands:
+
+| Command | What it does |
+|---|---|
+| `python run.py data` | Fetch and process all data sources. Any source that fails falls back to mock data. |
+| `python run.py test` | Run the test suite |
+| `python run.py dev` | Backend and frontend with hot reload |
+
+If the repo is inside OneDrive or Dropbox, the virtualenv and raw downloads go to `%LOCALAPPDATA%\SiteScore` instead, so you don't sync about 1 GB of packages. Set `SITESCORE_CACHE_DIR` to choose another location.
+
+## API keys (`.env`)
+
+All keys are optional. `install` creates `.env` from `.env.example`.
+
+| Key | Needed for | Without it |
+|---|---|---|
+| `GOOGLE_PLACES_API_KEY` | Backtest ground truth: rating, review count, open/closed | Backtest uses OSM-only outcome proxies |
+| `TFNSW_API_KEY` | GTFS stop locations (bus stops) | Station patronage still works, since it needs no key |
+
+ABS, OpenStreetMap, NSW Planning Portal and Transport for NSW station patronage need no keys.
+
+## Data sources
+
+All sources are official or open data. Details and licences are in [config/sources.yaml](config/sources.yaml).
+
+| Source | Used for | Granularity |
+|---|---|---|
+| ABS Census 2021 General Community Profile | Residents, age, income, households, dwellings | SA1 |
+| ABS Census 2021 Working Population Profile | Workers by place of work | SA2, spread onto non-residential mesh blocks |
+| ABS ASGS 2021 boundaries | Geometry and mesh-block land use | SA1 / SA2 / MB |
+| Transport for NSW station entries/exits | Commuter foot traffic | Station × month, from 2016 |
+| OpenStreetMap (Overpass) | Competitors, anchor tenants, stations | Point, and **historical as of any date** |
+| NSW Planning Portal online DA data | Future residents from approved developments | Application |
+| Google Places (optional) | Backtest outcome proxies only | Place |
+
+### No leakage ("as of" dating)
+
+Every stored row records when it was true (`valid_from` / `valid_to`) and when it became public (`published_at`). A model run as of date *D* only sees rows published on or before *D*. For example, Census 2021 describes August 2021 but was published on 28 June 2022, and its employment data on 12 October 2022. Tests enforce this rule.
+
+## Model
+
+Each layer is a separate module in `sitescore/model/` with its own tests. Every assumption is in `config/`.
+
+1. **Demand:** residents, workers and commuters within each segment's walking catchment, weighted by time of day.
+2. **Fit:** local demographics against the business type's customer profile. Weights are in YAML.
+3. **Competition:** Huff gravity model across all competitors, plus an "elsewhere" option.
+4. **Agent-based:** a few thousand virtual customers choose stores by distance, price, quality and habit.
+5. **Game theory:** nearby competitors' prices respond to our opening through best-response rounds until prices settle.
+6. **Time dynamics:** ramp-up, seasonality, school holidays, and developments completing on their expected dates.
+7. **Spend:** visits × average transaction value gives revenue. Rent and wages give profit.
+8. **Uncertainty:** Monte Carlo over key assumptions gives P10/P50/P90 bands.
+
+## Configuration
+
+| File | Contents |
+|---|---|
+| `config/regions/parramatta.yaml` | Study area: LGA code, bbox, map view |
+| `config/business_types/*.yaml` | One file per business type. Add a file to add a type. |
+| `config/model.yaml` | Huff, agent-based, game theory and Monte Carlo assumptions |
+| `config/calendars/nsw.yaml` | School-holiday pattern |
+| `config/sources.yaml` | Data sources, licences, publication dates |
+
+## Repo layout
+
+```
+config/          all assumptions (YAML)
+sitescore/
+  datastore/     as-of store + leakage guard
+  pipeline/      one adapter per data source (real fetch + mock fallback)
+  model/         one module per model layer
+  backtest/      backtest runner and metrics
+  api/           FastAPI app
+frontend/        web app (map, charts, backtest screen)
+backtests/       backtest cohorts (CSV)
+tests/
+```
+
+## Known limitations
+
+- Absolute dollar figures depend on spend assumptions in YAML. The backtest validates the **ranking** of sites, not absolute revenue.
+- Walking distance is straight-line distance × a detour factor (1.3). Using the OSM walking network is a planned upgrade.
+- Workers are only published down to SA2. Within an SA2 they are spread over commercial, industrial, education and health mesh blocks.
+- OSM was less complete in earlier years, so historical competitor counts are slightly low.

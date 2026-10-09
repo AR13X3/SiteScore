@@ -1,0 +1,79 @@
+# Business profile: long day care centre (DRAFT: numbers need validation).
+# One "visit" = one child-day. Customers are children aged 0-4, so the
+# residents segment is scaled by the local share of 0-4 year olds.
+
+id: childcare
+name: Childcare
+description: Long day care centre, ~90 licensed places.
+status: draft
+
+competitors:
+  - {tags: {amenity: childcare}, weight: 1.0}
+  - {tags: {amenity: kindergarten}, weight: 0.7}
+
+anchors:
+  radius_m: 400
+  items:
+    - {tags: {amenity: school}, weight: 0.6}
+    - {tags: {railway: station}, weight: 0.5}
+    - {tags: {shop: supermarket}, weight: 0.3}
+  max_boost: 0.10
+
+segments:
+  residents:
+    population_scale: age_0_4_share    # count children, not all residents
+    participation: 0.50          # 0-4 year olds in formal long day care (assumption)
+    visits_per_month: 13         # ~3 days a week
+    max_walk_minutes: 15
+    fit_applies: true
+  workers:
+    participation: 0.015         # workers using care near their workplace (assumption)
+    visits_per_month: 13
+    max_walk_minutes: 8
+    fit_applies: false
+  commuters:
+    participation: 0.0
+    visits_per_month: 13
+    max_walk_minutes: 4
+    fit_applies: false
+
+dayparts:
+  - {name: day, hours: [7, 18], trade_share: 1.0, presence: {residents: 1.0, workers: 1.0, commuters: 0.0}}
+weekend_trade_share: 0.0
+weekend_presence: {residents: 0.0, workers: 0.0, commuters: 0.0}
+
+fit:
+  strength: 0.30
+  clip: [0.70, 1.40]
+  features:
+    hh_family_with_children_share:   {weight: 0.40, why: "Families with young kids"}
+    median_income_household_weekly:  {weight: 0.35, why: "Ability to pay the gap fee"}
+    age_25_34_share:                 {weight: 0.15, why: "Parents of young children"}
+    age_65_plus_share:               {weight: -0.10, why: "Fewer young families"}
+
+our_store:
+  attractiveness: 1.0
+  quality: 0.0
+
+pricing:
+  reference_price: 155.00        # daily fee before subsidy (assumption)
+  our_price: 155.00
+  price_range: [120.00, 190.00]
+  unit_cost: 25.00
+
+spend:
+  avg_transaction_value: 155.00
+  atv_price_elasticity: 1.0
+  capacity_visits_per_month: 1950    # 90 places x ~21.7 operating days
+
+costs:
+  rent_per_month: 25000
+  wages_per_month: 140000
+  cogs_share: 0.05
+  other_fixed_per_month: 12000
+
+dynamics:
+  ramp_start_share: 0.25
+  ramp_months_to_90pct: 18
+  seasonality: [0.88, 1.00, 1.01, 1.00, 1.01, 1.01, 1.00, 1.01, 1.01, 1.01, 1.01, 0.93]
+  school_holiday_effect: {residents: 0.0, workers: 0.0, commuters: 0.0}

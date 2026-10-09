@@ -1,0 +1,36 @@
+# Study region. Add another region by copying this file and setting
+# SITESCORE_REGION=<id> in .env. Everything region-specific lives here.
+
+id: parramatta
+name: City of Parramatta
+state: NSW
+
+# ABS Australian Statistical Geography Standard, edition 3 (2021).
+asgs_edition: 2021
+lga_code: "16260"          # Parramatta (LGA_CODE_2021), from geo.abs.gov.au ASGS2021/LGA
+
+# Extent of the LGA in WGS84 [lon_min, lat_min, lon_max, lat_max].
+bbox: [150.9475, -33.8584, 151.0973, -33.7570]
+
+# Customers don't stop at council boundaries: load demand and competitors
+# this far beyond the LGA so sites near the edge aren't undercounted.
+buffer_m: 1500
+
+# Projected CRS for distances in metres (GDA2020 / MGA zone 56).
+metric_crs: "EPSG:7856"
+
+map:
+  center: [-33.8150, 151.0030]   # [lat, lon] Parramatta CBD
+  zoom: 14
+
+census:
+  state: NSW                      # DataPack state suffix
+  vintage: 2021
+
+planning_portal:
+  council_names: ["City of Parramatta Council"]
+
+# Address search is restricted to this state.
+geocoding:
+  country_code: au
+  state: NSW

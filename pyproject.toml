@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sitescore"
+version = "0.1.0"
+description = "Location-revenue simulator: compare candidate sites over 36 months with P10/P50/P90 bands."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.4",
+    "pyyaml>=6.0",
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "pyarrow>=16",
+    "geopandas>=1.0",
+    "shapely>=2.0",
+    "pyproj>=3.6",
+    "pyogrio>=0.9",
+    "scipy>=1.13",
+    "httpx>=0.27",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.setuptools.packages.find]
+include = ["sitescore*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+# run.py runs under the system Python before the venv exists, so its version check is real.
+"run.py" = ["UP036"]

@@ -1,0 +1,109 @@
+# Business profile: café.
+# Adding a business type = adding a file like this one. No code changes.
+# Values marked (assumption) are industry ballparks: replace with POS or
+# franchise data when available. The Monte Carlo layer varies the key ones.
+
+id: cafe
+name: Café
+description: Independent specialty café. Coffee plus light food, dine-in and takeaway.
+status: ready            # ready | draft (draft profiles show a warning in the UI)
+
+# --- Who competes and who generates traffic (OpenStreetMap tags) ----------------
+competitors:
+  - {tags: {amenity: cafe}, weight: 1.0}
+  # Partial substitutes: someone grabbing a coffee here isn't going to us.
+  - {tags: {shop: bakery}, weight: 0.35}
+  - {tags: {amenity: fast_food, cuisine: coffee_shop}, weight: 0.8}
+  - {tags: {shop: coffee}, weight: 0.5}
+
+# Anchors pull people past the door. Weight = demand boost per anchor within
+# anchor_radius_m (diminishing: log1p of weighted count).
+anchors:
+  radius_m: 250
+  items:
+    - {tags: {shop: supermarket}, weight: 1.0}
+    - {tags: {railway: station}, weight: 1.0}
+    - {tags: {amenity: school}, weight: 0.4}
+    - {tags: {amenity: university}, weight: 0.8}
+    - {tags: {amenity: hospital}, weight: 0.8}
+    - {tags: {office: "*"}, weight: 0.15}
+  max_boost: 0.25        # anchors can add at most +25% to demand
+
+# --- Layer 1: demand -------------------------------------------------------------
+# Three customer segments. For each: how many in the catchment use this kind of
+# business at all (participation), how often (visits per month), and how far
+# they'll walk.
+segments:
+  residents:
+    participation: 0.40          # adults who buy from cafés at least monthly (assumption)
+    visits_per_month: 5
+    max_walk_minutes: 10
+    fit_applies: true            # demographic fit (layer 2) adjusts this segment
+  workers:
+    participation: 0.60          # (assumption) office/retail workers buying coffee near work
+    visits_per_month: 9
+    max_walk_minutes: 6          # within a coffee-break walk
+    fit_applies: false
+  commuters:
+    participation: 0.12          # station users who buy on the way (assumption)
+    visits_per_month: 8
+    max_walk_minutes: 4          # they won't detour far from the station
+    fit_applies: false
+
+# Time-of-day weighting: share of a café's trade in each daypart, and how
+# present each segment is near the site in that daypart (0..1).
+dayparts:
+  - {name: breakfast, hours: [6, 10], trade_share: 0.50, presence: {residents: 0.6, workers: 1.0, commuters: 1.0}}
+  - {name: lunch,     hours: [11, 14], trade_share: 0.35, presence: {residents: 0.5, workers: 1.0, commuters: 0.1}}
+  - {name: afternoon, hours: [14, 16], trade_share: 0.15, presence: {residents: 0.8, workers: 0.7, commuters: 0.5}}
+weekend_trade_share: 0.25        # share of weekly trade on Sat+Sun
+weekend_presence: {residents: 1.0, workers: 0.15, commuters: 0.3}
+
+# --- Layer 2: demographic fit ------------------------------------------------------
+# Fit index = sum(weight * z-score of feature vs region average).
+# Multiplier = exp(strength * index), clipped. Weights are relative.
+fit:
+  strength: 0.25
+  clip: [0.70, 1.40]
+  features:
+    age_25_34_share:             {weight: 0.30, why: "Core specialty-coffee customers"}
+    age_15_24_share:             {weight: 0.10, why: "Students; lower spend but frequent"}
+    median_income_personal_weekly: {weight: 0.25, why: "Discretionary spend on coffee"}
+    dwelling_apartment_share:    {weight: 0.15, why: "Dense living, more out-of-home consumption"}
+    hh_lone_or_group_share:      {weight: 0.10, why: "Singles and sharers eat out more"}
+    age_65_plus_share:           {weight: -0.10, why: "Lower café frequency"}
+
+# --- Layers 3-5: our store vs competitors ------------------------------------------
+our_store:
+  attractiveness: 1.0            # relative to an average competitor (1.0)
+  quality: 0.3                   # z-score vs local cafés (0 = average)
+
+pricing:
+  # Price of the reference item (a regular flat white), Sydney 2024-25.
+  reference_price: 5.30          # (assumption) local average
+  our_price: 5.30
+  price_range: [4.50, 6.50]      # prices the game-theory layer may choose
+  unit_cost: 1.60                # ingredients + cup per reference item (assumption)
+
+# --- Layer 7: spend ----------------------------------------------------------------
+spend:
+  avg_transaction_value: 13.50   # coffee + food, per visit (assumption)
+  # Bigger receipt when our price is above the reference (same basket, higher price).
+  atv_price_elasticity: 1.0
+  capacity_visits_per_month: null    # null = no hard cap
+
+costs:                           # optional, enables the profit view
+  rent_per_month: 7000           # ~80 m2 retail, Parramatta (assumption)
+  wages_per_month: 26000         # ~4.5 FTE (assumption)
+  cogs_share: 0.30               # of revenue
+  other_fixed_per_month: 2500
+
+# --- Layer 6: time dynamics ----------------------------------------------------------
+dynamics:
+  ramp_start_share: 0.35         # month-1 revenue as a share of mature revenue
+  ramp_months_to_90pct: 8
+  # Monthly multipliers (Jan..Dec). Office-heavy areas dip in January.
+  seasonality: [0.86, 0.98, 1.03, 0.99, 1.03, 1.00, 0.98, 1.02, 1.01, 1.02, 1.05, 0.95]
+  # Effect of school holidays on each segment's presence (multiplied by the
+  # calendar's school-holiday fraction for the month).
+  school_holiday_effect: {residents: 0.05, workers: -0.12, commuters: -0.20}
