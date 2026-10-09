@@ -82,7 +82,8 @@ def build_market(view: AsOfView, profile: BusinessProfile, cfg: ModelConfig, reg
     workers = view.table("workers")
     stations = view.table("station_usage")
     pois = view.table("pois")
-    developments = _approved_developments(view.table("developments"), crs)
+    developments = _approved_developments(view.table("developments"), crs,
+                                          cfg.developments.determined_approval_rate)
 
     people = areas["pop_total"].to_numpy(float)
     scale = profile.segments["residents"].population_scale
@@ -113,17 +114,26 @@ def build_market(view: AsOfView, profile: BusinessProfile, cfg: ModelConfig, reg
     )
 
 
-def _approved_developments(events: pd.DataFrame, crs: str) -> pd.DataFrame:
-    """DAs whose latest known event is an approval, with new dwellings."""
+def _approved_developments(events: pd.DataFrame, crs: str, determined_rate: float
+                           ) -> pd.DataFrame:
+    """DAs whose latest known event is an approval (or a determination), with new dwellings.
+
+    "determined" (outcome not published) counts at determined_rate. A project
+    re-lodged as a new DA at the same spot is counted once: the latest known one.
+    """
     cols = ["da_id", "x", "y", "new_dwellings", "approved"]
     if events.empty:
         return pd.DataFrame(columns=cols)
     latest = events.sort_values("event_date").groupby("da_id").tail(1)
-    approved = latest[(latest["event"] == "approved") & (latest["new_dwellings"] > 0)]
-    x, y = project(approved["lon"], approved["lat"], crs)
-    return pd.DataFrame({"da_id": approved["da_id"].to_numpy(), "x": x, "y": y,
-                         "new_dwellings": approved["new_dwellings"].to_numpy(float),
-                         "approved": approved["event_date"].to_numpy()})
+    ok = latest[latest["event"].isin(["approved", "determined"]) & (latest["new_dwellings"] > 0)]
+    x, y = project(ok["lon"], ok["lat"], crs)
+    rate = np.where(ok["event"] == "determined", determined_rate, 1.0)
+    df = pd.DataFrame({"da_id": ok["da_id"].to_numpy(), "x": x, "y": y,
+                       "new_dwellings": ok["new_dwellings"].to_numpy(float) * rate,
+                       "approved": ok["event_date"].to_numpy()})
+    spot = (df["x"] / 10).round().astype(int).astype(str) + ":" + (df["y"] / 10).round().astype(int).astype(str)
+    return df.loc[df.sort_values("approved").assign(spot=spot).drop_duplicates("spot", keep="last").index
+                  ].reset_index(drop=True)
 
 
 def _points(ids, lon, lat, people, crs) -> PointSet:

@@ -1,26 +1,91 @@
 """NSW Planning Portal online DA data -> `developments` (one row per DA event).
 
-A DA is stored as events (lodged, then approved or refused), each published on
-the day it happened. As of any date the model therefore sees only what was
-known then: a DA approved in 2024 is just "lodged" in a 2023 run.
+A DA is stored as events (lodged, then determined/approved/refused), each
+published on the day it happened. As of any date the model therefore sees only
+what was known then: a DA determined in 2024 is just "lodged" in a 2023 run.
+
+The real feed reports "Determined" without saying approved or refused, so those
+events are recorded as "determined"; the model discounts them by an approval
+rate (config: model.yaml developments.determined_approval_rate). Only original
+Development Applications with new dwellings are kept (no modifications/CDCs).
 """
 
 from __future__ import annotations
 
 import datetime as dt
+import json
+import logging
 
 import numpy as np
 import pandas as pd
 
+from sitescore.pipeline import abs_geo
 from sitescore.pipeline.base import Adapter, PipelineContext, stamp
+from sitescore.pipeline.http import cached_json, request
 from sitescore.pipeline.mock_world import mock_world
 
+log = logging.getLogger(__name__)
+
 MOCK_FIRST_LODGED = dt.date(2019, 1, 1)
+PAGE_SIZE = 1000
+
+
+def fetch_applications(url: str, councils: list[str]) -> list[dict]:
+    """Every application for the councils, following pagination."""
+    apps, page, pages = [], 1, 1
+    while page <= pages:
+        resp = request("GET", url, headers={
+            "PageSize": str(PAGE_SIZE), "PageNumber": str(page),
+            "filters": json.dumps({"filters": {"CouncilName": councils,
+                                               "ApplicationType": ["Development Application"]}}),
+        })
+        body = resp.json()
+        apps += body.get("Application", [])
+        pages = int(body.get("TotalPages") or 1)
+        page += 1
+    return apps
+
+
+def applications_to_events(apps: list[dict]) -> pd.DataFrame:
+    rows = []
+    for a in apps:
+        dwellings = a.get("NumberOfNewDwellings") or 0
+        locs = a.get("Location") or []
+        if a.get("ApplicationType") != "Development Application" or dwellings <= 0 or not locs:
+            continue
+        try:
+            lon, lat = float(locs[0]["X"]), float(locs[0]["Y"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        base = {"da_id": a["PlanningPortalApplicationNumber"], "lon": lon, "lat": lat,
+                "new_dwellings": int(dwellings)}
+        lodged = a.get("LodgementDate") or a.get("SubmissionDate")
+        if lodged:
+            rows.append({**base, "event": "lodged", "event_date": lodged})
+        if a.get("ApplicationStatus") == "Determined" and a.get("DeterminationDate"):
+            rows.append({**base, "event": "determined", "event_date": a["DeterminationDate"]})
+    df = pd.DataFrame(rows, columns=["da_id", "lon", "lat", "new_dwellings", "event", "event_date"])
+    df["event_date"] = pd.to_datetime(df["event_date"].str[:10], errors="coerce")
+    return df.dropna(subset=["event_date"]).drop_duplicates(["da_id", "event"])
 
 
 class PlanningDA(Adapter):
     source_id = "planning_da"
     tables = ("developments",)
+
+    def fetch(self, ctx: PipelineContext) -> dict[str, pd.DataFrame]:
+        url = ctx.source(self.source_id).model_extra["url"]
+        councils = ctx.region.planning_portal["council_names"]
+        path = ctx.raw_dir / self.source_id / f"{ctx.region.id}_{ctx.today.isoformat()}.json"
+        apps = cached_json(path, lambda: fetch_applications(url, councils))
+        df = applications_to_events(apps)
+        df = df[df["event_date"] <= pd.Timestamp(ctx.today)]
+        pts = abs_geo.gpd.GeoDataFrame(geometry=abs_geo.gpd.points_from_xy(df["lon"], df["lat"]),
+                                       crs="EPSG:4326")
+        df = df[abs_geo.in_study_area(ctx, pts).to_numpy()].reset_index(drop=True)
+        log.info("planning: %d applications -> %d dwelling DA events", len(apps), len(df))
+        return {"developments": stamp(df, published_at=df["event_date"],
+                                      valid_from=df["event_date"])}
 
     def mock(self, ctx: PipelineContext) -> dict[str, pd.DataFrame]:
         city = mock_world(ctx).city

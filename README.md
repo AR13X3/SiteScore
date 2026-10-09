@@ -51,15 +51,27 @@ ABS, OpenStreetMap, NSW Planning Portal and Transport for NSW station patronage 
 
 All sources are official or open data. Details and licences are in [config/sources.yaml](config/sources.yaml).
 
-| Source | Used for | Granularity |
-|---|---|---|
-| ABS Census 2021 General Community Profile | Residents, age, income, households, dwellings | SA1 |
-| ABS Census 2021 Working Population Profile | Workers by place of work | SA2, spread onto non-residential mesh blocks |
-| ABS ASGS 2021 boundaries | Geometry and mesh-block land use | SA1 / SA2 / MB |
-| Transport for NSW station entries/exits | Commuter foot traffic | Station × month, from 2016 |
-| OpenStreetMap (Overpass) | Competitors, anchor tenants, stations | Point, and **historical as of any date** |
-| NSW Planning Portal online DA data | Future residents from approved developments | Application |
-| Google Places (optional) | Backtest outcome proxies only | Place |
+| Source | Used for | Granularity | Parramatta (LGA + 1.5 km) |
+|---|---|---|---|
+| ABS Census 2021 General Community Profile | Residents, age, income, households, dwellings | SA1 | 1,120 SA1s, 505k residents |
+| ABS Census 2021 Working Population Profile | Workers by place of work | SA2, spread onto mesh blocks by land use | 234k workers on 4,551 blocks |
+| ABS ASGS 2021 boundaries | Study area, SA1 centroids, mesh-block land use | SA1 / SA2 / MB | fetched for the area only |
+| Transport for NSW station entries/exits | Commuter foot traffic | Station × month, Jul 2016 onwards | 41 train, metro and light-rail stations |
+| OpenStreetMap (Overpass) | Competitors, anchor tenants, stations | Point; **quarterly historical snapshots** | ~900 points per snapshot |
+| NSW Planning Portal online DA data | Future residents from development applications | Application → lodged and determined events | 2,767 DAs with new dwellings |
+| NSW Spatial Services address points (Nominatim fallback) | Address search in the UI (`GET /api/geocode?q=`) | Address | live |
+| Google Places (optional) | Backtest outcome proxies only | Place | real adapter arrives with the backtest |
+
+`python run.py data` downloads about 140 MB the first time and caches everything under the raw folder. Re-runs reuse that cache.
+
+**OpenStreetMap snapshots are slow.** Each historical snapshot is a heavy query, and public Overpass servers are often overloaded. Snapshots are fetched in priority order: today, then the backtest window, then the rest. Failures are retried once and then skipped. Run `python run.py data --only osm` again later to fill any gaps. The model always uses the latest snapshot on or before the as-of date.
+
+#### Data caveats
+
+- **Planning Portal outcomes:** the Portal reports "Determined" without saying approved or refused, so those dwellings count at a 90% approval rate (in config).
+- **Re-lodged projects:** a project re-lodged as a new DA at the same site is counted once.
+- **Small Census areas:** values ABS suppressed in small SA1s are filled with the population-weighted median.
+- **Station locations:** these come from OpenStreetMap, because the patronage files only have station names.
 
 ### No leakage ("as of" dating)
 

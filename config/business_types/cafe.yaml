@@ -28,7 +28,7 @@ anchors:
     - {tags: {amenity: school}, weight: 0.4}
     - {tags: {amenity: university}, weight: 0.8}
     - {tags: {amenity: hospital}, weight: 0.8}
-    - {tags: {office: "*"}, weight: 0.15}
+    # No office anchor: office foot traffic is already counted via Census workers.
   max_boost: 0.25        # anchors can add at most +25% to demand
 
 # --- Layer 1: demand -------------------------------------------------------------

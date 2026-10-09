@@ -29,6 +29,19 @@ abs_census_wpp:
   published_at: {rule: fixed, date: 2022-10-12}      # Census second release (employment)
   valid_from: 2021-08-10
   used_for: workers by place of work
+  # Relative jobs per km2 by mesh-block land use, used to spread each SA2's
+  # workers within the SA2 (assumption: offices/shops/hospitals densest).
+  mesh_block_job_density:
+    Commercial: 1.0
+    Hospital/Medical: 1.0
+    Education: 0.6
+    Industrial: 0.35
+    Transport: 0.15
+    Other: 0.1
+    Residential: 0.02
+    Parkland: 0.0
+    Water: 0.0
+    Primary Production: 0.01
 
 abs_boundaries:
   title: ABS ASGS Edition 3 boundaries (SA1, SA2, mesh blocks, LGA)
@@ -57,7 +70,10 @@ osm:
   title: OpenStreetMap (via Overpass API)
   provider: OpenStreetMap contributors
   licence: ODbL 1.0
+  # Tried in order. Historical ([date:]) queries are heavy; the main instance
+  # often times out under load, so a mirror that serves them goes first.
   endpoints:
+    - https://maps.mail.ru/osm/tools/overpass/api/interpreter
     - https://overpass-api.de/api/interpreter
     - https://overpass.private.coffee/api/interpreter
   # Overpass can return the map exactly as it was on a past date ([date:...]),
@@ -66,8 +82,13 @@ osm:
   published_at: {rule: snapshot}
   used_for: competitors, anchor tenants, stations, schools; backtest cohort discovery
   min_seconds_between_requests: 5
-  # Snapshot dates fetched: every N months from start, plus today.
-  snapshots: {start: 2019-01-01, every_months: 3}
+  # Snapshot dates fetched: every N months from start, plus today. Public
+  # Overpass servers are often overloaded, so dates are fetched in priority
+  # order (today, then the backtest window, then the rest, newest first) and a
+  # second pass retries failures. Re-run `python run.py data --only osm` to fill
+  # any gaps; cached snapshots are never re-downloaded.
+  snapshots: {start: 2019-01-01, every_months: 3, priority_window: [2022-07-01, 2025-03-01]}
+  retry_cooldown_seconds: 90
 
 planning_da:
   title: NSW Planning Portal - Online DA data

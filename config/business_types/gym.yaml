@@ -15,7 +15,6 @@ anchors:
   items:
     - {tags: {shop: supermarket}, weight: 1.0}
     - {tags: {railway: station}, weight: 0.8}
-    - {tags: {office: "*"}, weight: 0.1}
   max_boost: 0.15
 
 segments:

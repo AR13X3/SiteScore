@@ -272,6 +272,7 @@ class BuildTime(Strict):
 
 class DevelopmentsCfg(Strict):
     persons_per_new_dwelling: float = Field(gt=0)
+    determined_approval_rate: float = Field(1.0, ge=0, le=1)
     build_months: list[BuildTime]
     occupancy_ramp_months: int = Field(ge=0)
 

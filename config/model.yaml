@@ -92,6 +92,9 @@ montecarlo:
 # --- Future demand from approved developments --------------------------------
 developments:
   persons_per_new_dwelling: 2.4      # ABS 2021 average household size, Greater Sydney ~2.7; apartments lower
+  # The Planning Portal reports "Determined" without the outcome. Most determined
+  # DAs are approved, so their dwellings count at this rate (assumption).
+  determined_approval_rate: 0.9
   # Months from DA approval to occupation, by project size (new dwellings).
   build_months:
     - {max_dwellings: 10,  months: 18}

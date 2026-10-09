@@ -10,6 +10,7 @@ from sitescore import __version__
 from sitescore.api.deps import get_store
 from sitescore.config import load_business_types, load_region, load_sources
 from sitescore.datastore import TABLES, DataStore
+from sitescore.pipeline.geocode import search as address_search
 from sitescore.settings import get_settings
 
 router = APIRouter(prefix="/api", tags=["meta"])
@@ -55,6 +56,14 @@ def sources() -> list[dict]:
             "key_configured": has_key,
         })
     return out
+
+
+@router.get("/geocode")
+def geocode(q: str) -> list[dict]:
+    """Address search within the region (NSW Spatial Services, fallback Nominatim)."""
+    if get_settings().offline:
+        return []
+    return list(address_search(q[:200]))
 
 
 @router.get("/data/status")
