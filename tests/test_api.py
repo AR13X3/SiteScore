@@ -41,6 +41,17 @@ def test_evaluate_returns_explained_results(client):
         assert all(d["latest_published"] <= "2026-06-01" for d in r["data_used"])
 
 
+def test_simulate_returns_36_months_ranking_and_why(client):
+    resp = client.post("/api/simulate", json={"as_of": "2026-06-01",
+                                              "sites": [CBD, HARRIS_PARK]})
+    assert resp.status_code == 200
+    r = resp.json()
+    assert r["open_date"] == "2026-07-01"
+    assert all(len(s["months"]) == 36 for s in r["sites"])
+    assert set(r["ranking"]) == {"site-1", "site-2"}
+    assert all(e["headline"] for e in r["explanations"])
+
+
 def test_unknown_business_type_is_404(client):
     resp = client.post("/api/evaluate", json={"business_type": "bowling", "sites": [CBD]})
     assert resp.status_code == 404

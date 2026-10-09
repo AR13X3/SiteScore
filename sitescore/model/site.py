@@ -57,6 +57,8 @@ def evaluate_site(market: Market, site: Site, profile: BusinessProfile, cfg: Mod
         monthly_visits=spend.visits,
         monthly_revenue=spend.revenue,
         monthly_profit=monthly_profit(spend.revenue, profile.costs),
+        avg_transaction_value=spend.atv,
+        segment_visits=spend.uncapped_visits_by_segment,
         layers=layers,
         data_used=[DataUsed(**a.__dict__) for a in market.data_used],
     )

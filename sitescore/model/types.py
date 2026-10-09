@@ -45,5 +45,54 @@ class SiteResult(BaseModel):
     monthly_visits: float
     monthly_revenue: float  # mature month, before ramp-up and seasonality
     monthly_profit: float | None
+    avg_transaction_value: float
+    # Mature visits per segment before any capacity cap (time dynamics use these).
+    segment_visits: dict[str, float]
     layers: list[LayerResult]
+    data_used: list[DataUsed]
+
+
+class MonthPoint(BaseModel):
+    month: dt.date
+    revenue: float
+    visits: float
+    profit: float | None
+    development_revenue: float  # part of revenue from residents of new developments
+
+
+class SiteSimulation(BaseModel):
+    site: Site
+    mature: SiteResult
+    months: list[MonthPoint]
+    total_revenue: float
+    total_profit: float | None
+    dynamics: LayerResult  # factor = total / (horizon x mature monthly revenue)
+
+
+class Contribution(BaseModel):
+    key: str
+    label: str
+    ratio: float          # this site's factor / the average candidate's factor
+    pct_effect: float     # ratio - 1
+    dollars: float        # step in a waterfall from the average candidate to this site
+
+
+class SiteExplanation(BaseModel):
+    site_id: str
+    rank: int
+    total_revenue: float
+    vs_average_pct: float
+    headline: str
+    contributions: list[Contribution]
+
+
+class SimulationResult(BaseModel):
+    business_type: str
+    as_of: dt.date
+    open_date: dt.date
+    horizon_months: int
+    baseline_total_revenue: float  # geometric mean of candidates' 36-month totals
+    sites: list[SiteSimulation]
+    ranking: list[str]  # site ids, best first
+    explanations: list[SiteExplanation]
     data_used: list[DataUsed]

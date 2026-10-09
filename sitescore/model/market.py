@@ -59,6 +59,10 @@ class Market:
     commuters: PointSet
     competitors: Venues
     anchors: Venues
+    # Census date: residents of developments finished before this are already counted.
+    census_date: dt.date = dt.date(2021, 8, 10)
+    # DAs approved as of the run date: da_id, x, y, new_dwellings, approved (Timestamp).
+    developments: pd.DataFrame = field(default_factory=pd.DataFrame)
     data_used: list[Access] = field(default_factory=list)
 
     def segment(self, name: str) -> PointSet:
@@ -78,6 +82,7 @@ def build_market(view: AsOfView, profile: BusinessProfile, cfg: ModelConfig, reg
     workers = view.table("workers")
     stations = view.table("station_usage")
     pois = view.table("pois")
+    developments = _approved_developments(view.table("developments"), crs)
 
     people = areas["pop_total"].to_numpy(float)
     scale = profile.segments["residents"].population_scale
@@ -102,8 +107,23 @@ def build_market(view: AsOfView, profile: BusinessProfile, cfg: ModelConfig, reg
         commuters=_commuters(stations, cfg, crs),
         competitors=competitors_v,
         anchors=_venues(anchors, crs, anchors["_weight"].to_numpy()),
+        census_date=areas["valid_from"].iat[0].date(),
+        developments=developments,
         data_used=view.accessed,
     )
+
+
+def _approved_developments(events: pd.DataFrame, crs: str) -> pd.DataFrame:
+    """DAs whose latest known event is an approval, with new dwellings."""
+    cols = ["da_id", "x", "y", "new_dwellings", "approved"]
+    if events.empty:
+        return pd.DataFrame(columns=cols)
+    latest = events.sort_values("event_date").groupby("da_id").tail(1)
+    approved = latest[(latest["event"] == "approved") & (latest["new_dwellings"] > 0)]
+    x, y = project(approved["lon"], approved["lat"], crs)
+    return pd.DataFrame({"da_id": approved["da_id"].to_numpy(), "x": x, "y": y,
+                         "new_dwellings": approved["new_dwellings"].to_numpy(float),
+                         "approved": approved["event_date"].to_numpy()})
 
 
 def _points(ids, lon, lat, people, crs) -> PointSet:

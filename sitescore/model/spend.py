@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from sitescore.config import BusinessProfile, Costs
+from sitescore.config import SEGMENTS, BusinessProfile, Costs
 from sitescore.model.demand import Catchment
 
 
@@ -22,7 +22,8 @@ class SpendResult:
     visits: float              # after any capacity cap
     capacity_factor: float     # 1.0 unless the capacity cap binds
     revenue: float
-    visits_by_segment: dict[str, float]
+    visits_by_segment: dict[str, float]           # after the cap
+    uncapped_visits_by_segment: dict[str, float]  # before it (time dynamics re-apply the cap monthly)
 
 
 def effective_atv(profile: BusinessProfile, price: float | None = None) -> float:
@@ -40,8 +41,7 @@ def compute_spend(catchment: Catchment, fit_mult: np.ndarray, p_own: np.ndarray,
     cap = profile.spend.capacity_visits_per_month
     capacity_factor = min(1.0, cap / visits) if cap and visits > 0 else 1.0
     atv = effective_atv(profile)
-    by_segment = {str(s): float(visits_pts[catchment.segment == s].sum()) * capacity_factor
-                  for s in np.unique(catchment.segment)}
+    uncapped = {s: float(visits_pts[catchment.segment == s].sum()) for s in SEGMENTS}
     return SpendResult(
         customers=customers,
         visits_per_customer=visits / customers if customers > 0 else 0.0,
@@ -49,7 +49,8 @@ def compute_spend(catchment: Catchment, fit_mult: np.ndarray, p_own: np.ndarray,
         visits=visits * capacity_factor,
         capacity_factor=capacity_factor,
         revenue=visits * capacity_factor * atv,
-        visits_by_segment=by_segment,
+        visits_by_segment={s: v * capacity_factor for s, v in uncapped.items()},
+        uncapped_visits_by_segment=uncapped,
     )
 
 

@@ -45,19 +45,29 @@ def region_zscores(features: pd.DataFrame, population: np.ndarray, names: list[s
     return pd.DataFrame(out)
 
 
-def compute_fit(catchment: Catchment, market: Market, profile: BusinessProfile) -> FitResult:
+def _normalised_weights(profile: BusinessProfile) -> tuple[list[str], np.ndarray]:
     names = list(profile.fit.features)
     raw = np.array([profile.fit.features[n].weight for n in names])
-    weights = raw / np.abs(raw).sum() if np.abs(raw).any() else raw
+    return names, raw / np.abs(raw).sum() if np.abs(raw).any() else raw
+
+
+def area_multipliers(market: Market, profile: BusinessProfile) -> np.ndarray:
+    """Fit multiplier for every resident area in the region (aligned with market.residents)."""
+    names, weights = _normalised_weights(profile)
+    z = region_zscores(market.resident_features, market.residents.people, names).to_numpy()
+    lo, hi = profile.fit.clip
+    return np.clip(np.exp(profile.fit.strength * (z @ weights)), lo, hi)
+
+
+def compute_fit(catchment: Catchment, market: Market, profile: BusinessProfile) -> FitResult:
+    names, weights = _normalised_weights(profile)
     z_all = region_zscores(market.resident_features, market.residents.people, names)
 
     mult = np.ones(len(catchment.weight))
     is_res = (catchment.segment == "residents") & catchment.fit_applies
     res_rows = catchment.source_index[is_res]
     z = z_all.to_numpy()[res_rows] if len(res_rows) else np.zeros((0, len(names)))
-    index_pts = z @ weights if len(names) else np.zeros(len(res_rows))
-    lo, hi = profile.fit.clip
-    mult[is_res] = np.clip(np.exp(profile.fit.strength * index_pts), lo, hi)
+    mult[is_res] = area_multipliers(market, profile)[res_rows]
 
     w = catchment.weight
     total = w.sum()
