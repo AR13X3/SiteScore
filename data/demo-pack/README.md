@@ -18,6 +18,7 @@ A snapshot of SiteScore's processed real data for the City of Parramatta, so a f
 | `station_usage` | Transport for NSW, station entries and exits (station locations from OpenStreetMap) | CC BY 4.0 / ODbL 1.0 |
 | `pois` | OpenStreetMap contributors, via Overpass | ODbL 1.0 |
 | `poi_history` | OpenStreetMap contributors, via the OSM API | ODbL 1.0 |
+| `vacancies` | OpenStreetMap contributors, via Overpass (vacant shopfronts) | ODbL 1.0 |
 | `developments` | NSW Planning Portal, online DA data | CC BY 4.0 |
 | `overture_places` | Overture Maps Foundation | CDLA Permissive 2.0 (some sources ODbL) |
 | `fsq_places` | Foursquare Open Source Places | Apache 2.0 |
