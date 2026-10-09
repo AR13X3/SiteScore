@@ -91,7 +91,7 @@ def build_market(view: AsOfView, profile: BusinessProfile, cfg: ModelConfig, reg
         people = people * areas[scale].to_numpy(float)
 
     competitors = _match_venues(pois, profile.competitors, crs, exclude_osm_ids)
-    is_chain = np.array([bool(t.get("brand")) for t in competitors.pop("_tags")])
+    is_chain = np.array([is_branded(t) for t in competitors.pop("_tags")])
     attract = np.where(is_chain, cfg.competitor_attractiveness.chain,
                        cfg.competitor_attractiveness.default)
     competitors_v = _venues(competitors, crs, competitors["_weight"].to_numpy() * attract)
@@ -158,6 +158,12 @@ def _commuters(stations: pd.DataFrame, cfg: ModelConfig, crs: str) -> PointSet:
     regulars = trips / cfg.demand.commuter_trips_per_month
     return _points(per_station.index, per_station["lon"], per_station["lat"],
                    regulars.to_numpy(), crs)
+
+
+def is_branded(tags: dict) -> bool:
+    """True for chain outlets (a non-empty OSM brand tag)."""
+    brand = tags.get("brand")
+    return isinstance(brand, str) and bool(brand.strip())
 
 
 def matches(tags: dict, rule: TagRule) -> bool:

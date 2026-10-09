@@ -6,6 +6,7 @@
     python run.py dev       # backend + frontend with hot reload
     python run.py data      # fetch/refresh datasets; any unavailable source falls back to mock
     python run.py test      # run the test suite
+    python run.py backtest  # predict past openings with past data, score against reality
 """
 
 from __future__ import annotations
@@ -117,6 +118,10 @@ def cmd_test(args: argparse.Namespace) -> None:
     sh([require_venv(), "-m", "pytest", *args.rest], cwd=ROOT)
 
 
+def cmd_backtest(args: argparse.Namespace) -> None:
+    sh([require_venv(), "-m", "sitescore.backtest", *args.rest], cwd=ROOT)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -125,10 +130,11 @@ def main() -> None:
     start.add_argument("--no-browser", action="store_true")
     start.set_defaults(fn=cmd_start)
     sub.add_parser("dev", help="run with hot reload").set_defaults(fn=cmd_dev)
-    # data/test forward any extra arguments (e.g. `data --mock`, `test -k leakage`).
-    passthrough = {"data": cmd_data, "test": cmd_test}
+    # data/test/backtest forward any extra arguments (e.g. `data --mock`, `test -k leakage`).
+    passthrough = {"data": cmd_data, "test": cmd_test, "backtest": cmd_backtest}
     sub.add_parser("data", help="fetch/refresh datasets (extra args go to the pipeline)")
     sub.add_parser("test", help="run tests (extra args go to pytest)")
+    sub.add_parser("backtest", help="predict past openings and score against reality")
     args, rest = parser.parse_known_args()
     if args.command in passthrough:
         args.fn, args.rest = passthrough[args.command], rest

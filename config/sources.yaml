@@ -110,6 +110,13 @@ google_places:
   used_for: backtest outcome proxies (rating, review count, business status)
   needs_key: true
   env_key: GOOGLE_PLACES_API_KEY
+  # One Text Search per mapped business (cafes, gyms, childcare seen since
+  # 2022, so closures are covered). Billed by Google per request; this caps it.
+  max_requests: 400
+  # Google's terms limit storing Places content: cached answers older than
+  # this are fetched again rather than kept.
+  cache_days: 30
+  track_from: 2022-01-01
 
 geocoding:
   title: Address search

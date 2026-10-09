@@ -351,6 +351,21 @@ class Source(BaseModel):
     env_key: str | None = None
 
 
+class OutcomeWeights(Strict):
+    survival: float = Field(ge=0)
+    reviews_per_month: float = Field(ge=0)
+    rating: float = Field(ge=0)
+    hours_change: float = Field(ge=0)
+
+
+class BacktestCfg(Strict):
+    window: tuple[dt.date, dt.date]
+    score_months: int = Field(ge=1)
+    min_months_open: int = Field(ge=0)
+    include_chains: bool
+    outcome_weights: OutcomeWeights
+
+
 # --- Loaders ----------------------------------------------------------------------------
 
 
@@ -401,6 +416,11 @@ def load_region(region_id: str | None = None) -> Region:
 @lru_cache
 def load_calendar(state: str) -> Calendar:
     return Calendar.model_validate(_read(CONFIG_DIR / "calendars" / f"{state.lower()}.yaml"))
+
+
+@lru_cache
+def load_backtest_config() -> BacktestCfg:
+    return BacktestCfg.model_validate(_read(CONFIG_DIR / "backtest.yaml"))
 
 
 @lru_cache

@@ -1,0 +1,24 @@
+# Backtest settings. A backtest predicts real businesses' success using only
+# data public before they opened, then compares with how they actually did.
+
+# Openings to include when discovering a cohort from OpenStreetMap history.
+window: [2022-11-01, 2024-12-31]
+
+# Predicted score = projected revenue over the first N months after opening.
+score_months: 24
+
+# A business needs at least this long since opening for outcomes to mean much.
+min_months_open: 12
+
+# Discovery: a business counts as new when it first appears in a quarterly OSM
+# snapshot (it opened between that snapshot and the previous one). Chains open
+# on head-office decisions, so they can be left out.
+include_chains: false
+
+# Actual performance = weighted sum of standardised outcome proxies. Missing
+# proxies are skipped (weights re-normalised over what's available).
+outcome_weights:
+  survival: 2.0           # still trading today (1) vs closed or gone from the map (0)
+  reviews_per_month: 1.0  # Google review count / months open (needs Google Places)
+  rating: 0.5             # Google rating (needs Google Places)
+  hours_change: 0.5       # change in weekly opening hours since first mapped (OSM)

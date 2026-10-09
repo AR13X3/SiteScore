@@ -61,6 +61,14 @@ def test_simulate_with_uncertainty_bands(client):
     assert sum(s["prob_best"] for s in u["sites"]) == pytest.approx(1.0)
 
 
+def test_backtest_endpoint(client):
+    assert any(c["id"] == "osm" for c in client.get("/api/backtest/cohorts").json())
+    r = client.post("/api/backtest", json={"cohort": "osm"}).json()
+    assert r["accuracy"]["n"] == len(r["rows"]) > 0
+    assert all(row["data_cutoff"] <= row["as_of"] for row in r["rows"])
+    assert client.post("/api/backtest", json={"cohort": "nope"}).status_code == 404
+
+
 def test_unknown_business_type_is_404(client):
     resp = client.post("/api/evaluate", json={"business_type": "bowling", "sites": [CBD]})
     assert resp.status_code == 404

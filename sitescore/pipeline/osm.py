@@ -203,6 +203,6 @@ def _within_study_area(ctx: PipelineContext, df: pd.DataFrame) -> pd.DataFrame:
 
 def _tags(base: dict, name: str, brand: str | None) -> str:
     tags = {**base, "name": name}
-    if brand:
+    if isinstance(brand, str) and brand:  # pandas turns missing brands into NaN
         tags["brand"] = brand
     return json.dumps(tags, ensure_ascii=False)

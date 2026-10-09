@@ -32,6 +32,7 @@ Other commands:
 |---|---|
 | `python run.py data` | Fetch and process all data sources. Any source that fails falls back to mock data. |
 | `python run.py test` | Run the test suite |
+| `python run.py backtest` | Predict past openings with past data and score them against reality |
 | `python run.py dev` | Backend and frontend with hot reload |
 
 If the repo is inside OneDrive or Dropbox, the virtualenv and raw downloads go to `%LOCALAPPDATA%\SiteScore` instead, so you don't sync about 1 GB of packages. Set `SITESCORE_CACHE_DIR` to choose another location.
@@ -160,6 +161,42 @@ To try it, start the app and open `http://127.0.0.1:8000/docs`, then call `POST 
 7. **Spend:** visits × average transaction value gives revenue. Rent and wages give profit.
 8. **Uncertainty:** Monte Carlo over key assumptions gives P10/P50/P90 bands.
 
+## Backtest (our proof)
+
+```bash
+python run.py backtest                  # cafés discovered from OpenStreetMap history
+python run.py backtest --cohort demo    # backtests/cohorts/demo.csv
+```
+
+1. **Cohort.**
+   - **Your own CSV** in `backtests/cohorts/`, with name, opening month, and lat/lon or an address.
+   - **Or discovery from OSM history.** A business counts as new when it first appears in a quarterly snapshot inside the window set in `config/backtest.yaml` (Nov 2022 to Dec 2024).
+2. **Predict with the past only.** Each business is predicted as of the day before it opened, or the last snapshot before it appeared. Four rules hold:
+   - Its market is built only through the dated as-of view.
+   - It is excluded from its own competitor set.
+   - Every data source it touched is checked again: anything published after the as-of date raises `LeakageError`.
+   - The prediction code never reads outcome data.
+
+   Tests plant future data and check that predictions don't move.
+3. **Then look at reality.** These signals count as actual performance:
+   - survival: still on OpenStreetMap, and not renamed or tagged disused
+   - change in weekly opening hours
+   - with a Google Places key: reviews per month since opening, rating and Google's open/closed status
+4. **Accuracy.** Four measures, each compared with a naive "foot traffic only" baseline:
+   - share of pairs ranked correctly (50% = coin flip)
+   - Spearman correlation
+   - survival AUC (does the model rank survivors above closures?)
+   - top-third vs bottom-third actual percentile
+
+**Real Parramatta results (9 Oct 2026, OSM-only outcomes):**
+
+| Measure | Model | Foot traffic only |
+|---|---|---|
+| Pairs ranked correctly | 56% | 47% |
+| Survival AUC | 0.55 | 0.60 |
+
+That's 46 cafés, 4 of them closed. Without Google Places, most open cafés are tied on outcome, so this is weak evidence either way. Adding `GOOGLE_PLACES_API_KEY` and running `python run.py data --only google_places` gives reviews and ratings for each café (about 300 requests, capped in `config/sources.yaml`).
+
 ## Configuration
 
 | File | Contents |
@@ -169,6 +206,7 @@ To try it, start the app and open `http://127.0.0.1:8000/docs`, then call `POST 
 | `config/model.yaml` | Huff, agent-based, game theory and Monte Carlo assumptions |
 | `config/calendars/nsw.yaml` | School-holiday pattern |
 | `config/sources.yaml` | Data sources, licences, publication dates |
+| `config/backtest.yaml` | Backtest window, score horizon, outcome weights |
 
 ## Repo layout
 

@@ -12,6 +12,7 @@ so the app always has data and the UI can show which tables are real.
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 import logging
 import zlib
@@ -38,6 +39,8 @@ class PipelineContext:
     raw_dir: Path
     today: dt.date
     snapshot_dates: list[dt.date] = field(default_factory=list)
+    # The store being filled, for adapters that build on another source's output.
+    store: DataStore | None = None
 
     def source(self, source_id: str) -> Source:
         return self.sources[source_id]
@@ -115,7 +118,7 @@ def run_adapter(adapter: Adapter, store: DataStore, ctx: PipelineContext,
         note = "offline mode"
     else:
         try:
-            frames = adapter.fetch(ctx)
+            frames = adapter.fetch(dataclasses.replace(ctx, store=store))
             return _write(adapter, store, frames, "real", "fetched")
         except NotImplementedError as exc:
             note = str(exc)
