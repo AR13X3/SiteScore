@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+from collections import Counter
 
 import numpy as np
+import pandas as pd
 
 from sitescore.backtest import metrics
 from sitescore.backtest.cohort import Business
+from sitescore.backtest.openings import OpeningCheck, check_openings
 from sitescore.backtest.outcomes import Outcome, observe
 from sitescore.backtest.predict import Prediction, predict
 from sitescore.backtest.types import (
@@ -17,7 +20,10 @@ from sitescore.backtest.types import (
     BacktestResult,
     BacktestRow,
     EvidenceOut,
+    HorizonOut,
     Skipped,
+    SurvivalReport,
+    ThirdRow,
 )
 from sitescore.config import BacktestCfg, BusinessProfile, Calendar, ModelConfig, Region
 from sitescore.datastore import TABLES, DataStore, NoDataAsOf
@@ -28,20 +34,24 @@ CAVEATS = [
     ("Revenue isn't public, so success is measured with proxies: survival (a vote across "
      "OpenStreetMap, Overture, Foursquare, ASIC business names and Google when available), "
      "opening-hours changes and, with Google Places, reviews per month and rating."),
-    ("The free Foursquare snapshot is from Feb 2025 unless HF_TOKEN is set; it can only "
-     "speak for businesses that opened before then."),
-    ("Opening dates discovered from OpenStreetMap are approximate: a business can be "
-     "mapped weeks or months after it opens. Provide a CSV with exact dates to tighten this."),
+    ("Opening dates come from when a business was first mapped on OpenStreetMap. Many "
+     "'first mapped' businesses are older ones being mapped for the first time; those that "
+     "Foursquare or ASIC knew long before, or that were already on the map, are excluded. "
+     "'Unverified' openings are kept, so some older businesses remain."),
+    ("Closures are dated by the map edit that recorded them; the real closure was on or "
+     "before that date. A closure nobody mapped is missed, which is why 'survived' needs "
+     "confirmation after the horizon and anything weaker counts as unknown."),
     ("Businesses that opened and closed between two quarterly snapshots are never seen, "
      "so the cohort slightly over-represents survivors."),
-    ("Small cohorts give noisy accuracy figures; treat fewer than ~15 businesses as a "
-     "demonstration, not evidence."),
+    ("Small cohorts give noisy accuracy figures; treat fewer than ~15 businesses, or a "
+     "handful of closures, as a demonstration, not evidence."),
 ]
 
 
 def run_backtest(businesses: list[Business], cohort: str, store: DataStore,
                  profile: BusinessProfile, cfg: ModelConfig, region: Region, calendar: Calendar,
-                 bt: BacktestCfg, today: dt.date) -> BacktestResult:
+                 bt: BacktestCfg, today: dt.date, lifecycles: pd.DataFrame | None = None
+                 ) -> BacktestResult:
     # --- Phase 1: predictions, data as of each opening only ----------------------------
     predictions: list[Prediction] = []
     skipped: list[Skipped] = []
@@ -56,10 +66,23 @@ def run_backtest(businesses: list[Business], cohort: str, store: DataStore,
             skipped.append(Skipped(name=b.name, reason=str(exc)))
     predictions = tuple(predictions)  # frozen before any outcome is read
 
-    # --- Phase 2: what actually happened ----------------------------------------------
+    # --- Phase 2: which openings were real, and what actually happened -----------------
+    discovered = [p.business for p in predictions if p.business.source == "osm_first_mapped"]
+    checks = (check_openings(discovered, store, lifecycles, bt)
+              if discovered and lifecycles is not None else {})
+    scored = []
+    for p in predictions:
+        c = checks.get(_key(p.business))
+        if c and c.verdict in bt.opening_check.exclude:
+            skipped.append(Skipped(name=p.business.name,
+                                   reason=f"not a new opening ({c.verdict}): {c.detail}"))
+        else:
+            scored.append(p)
+    predictions = tuple(scored)
+
     outcomes = observe([p.business for p in predictions], store, today,
                        bt.survival_evidence.model_dump(), bt.asic_match_window_months,
-                       bt.evidence_half_life_months)
+                       bt.evidence_half_life_months, lifecycles, bt.survival)
     actual_scores = _actual_scores([outcomes[_key(p.business)] for p in predictions],
                                    bt.outcome_weights.model_dump())
 
@@ -71,33 +94,35 @@ def run_backtest(businesses: list[Business], cohort: str, store: DataStore,
     for i, p in enumerate(predictions):
         o = outcomes[_key(p.business)]
         b = p.business
+        check = checks.get(_key(b), OpeningCheck("", ""))
         rows.append(BacktestRow(
             name=b.name, osm_id=b.osm_id, lat=b.lat, lon=b.lon, opened=b.opened,
-            opened_note=b.opened_note, as_of=b.as_of, data_cutoff=p.data_cutoff,
+            opened_note=b.opened_note, opening_check=check.verdict, opening_detail=check.detail,
+            as_of=b.as_of, data_cutoff=p.data_cutoff,
             predicted_score=p.score, predicted_rank=int(pred_rank[i]),
-            mature_monthly=p.mature_monthly, demand_only=p.demand_only,
+            mature_monthly=p.mature_monthly, demand_only=p.demand_only, layers=p.layers,
             actual=Actual(still_open=o.still_open, status_source=o.status_source,
                           survival_score=o.survival_score,
                           evidence=[EvidenceOut(**e.__dict__) for e in o.evidence],
                           months_open=round(o.months_open, 1),
                           reviews_per_month=o.reviews_per_month, rating=o.rating,
-                          hours_change=o.hours_change, notes=o.notes),
+                          hours_change=o.hours_change, notes=o.notes,
+                          horizon=HorizonOut(**o.horizon.__dict__) if o.horizon else None),
             actual_score=None if np.isnan(actual_scores[i]) else float(actual_scores[i]),
             actual_rank=None if np.isnan(actual_scores[i]) else int(act_rank[i]),
         ))
     rows.sort(key=lambda r: r.predicted_rank)
 
-    scored = ~np.isnan(actual_scores)
-    alive = np.array([outcomes[_key(p.business)].still_open for p in predictions], dtype=object)
-    known = np.array([a is not None for a in alive], dtype=bool)
-    accuracy = _accuracy(pred[scored], base[scored], actual_scores[scored],
-                         pred[known], base[known], alive[known].astype(bool))
+    ok = ~np.isnan(actual_scores)
     sources = sorted({e.source for o in outcomes.values() for e in o.evidence}
                      | ({"google"} if any(o.reviews is not None for o in outcomes.values()) else set()))
     return BacktestResult(
         cohort=cohort, business_type=profile.id, run_on=today, score_months=bt.score_months,
-        rows=rows, accuracy=accuracy, skipped=skipped,
-        provenance={t: store.provenance(t) for t in TABLES},
+        rows=rows, accuracy=_accuracy(pred[ok], base[ok], actual_scores[ok]),
+        survival=_survival([outcomes[_key(p.business)] for p in predictions], pred, base,
+                           bt.survival.horizon_months),
+        opening_checks=dict(Counter(c.verdict for c in checks.values())),
+        skipped=skipped, provenance={t: store.provenance(t) for t in TABLES},
         outcome_sources=sources, caveats=CAVEATS,
     )
 
@@ -134,14 +159,36 @@ def _actual_scores(outcomes: list[Outcome], weights: dict[str, float]) -> np.nda
         return np.where(weight > 0, total / weight, np.nan)
 
 
-def _accuracy(pred, base, actual, pred_known, base_known, alive) -> Accuracy:
+def _accuracy(pred, base, actual) -> Accuracy:
     pw, pairs = metrics.pairwise_accuracy(pred, actual)
     top, bottom = metrics.thirds(pred, actual)
     return Accuracy(
         n=len(pred), pairwise_accuracy=pw, pairs=pairs, spearman=metrics.spearman(pred, actual),
-        survival_auc=metrics.survival_auc(pred_known, alive), closures=int((~alive).sum()),
         top_third_actual_percentile=top, bottom_third_actual_percentile=bottom,
         baseline_pairwise_accuracy=metrics.pairwise_accuracy(base, actual)[0],
         baseline_spearman=metrics.spearman(base, actual),
-        baseline_survival_auc=metrics.survival_auc(base_known, alive),
+    )
+
+
+def _survival(outcomes: list[Outcome], pred: np.ndarray, base: np.ndarray,
+              horizon_months: int) -> SurvivalReport:
+    h = [o.horizon for o in outcomes]
+    status = np.array([x.status if x else "unknown" for x in h], dtype=object)
+    failure = np.array([(x.failure or "") if x else "" for x in h], dtype=object)
+    churn = np.array([x.site_closures if x else 0 for x in h], dtype=float)
+    judged = np.isin(status, ["closed", "survived"])
+    alive = status[judged] == "survived"
+    kinds = Counter((x.kind or "unknown") for x in h if x and x.status == "closed")
+    return SurvivalReport(
+        horizon_months=horizon_months,
+        status_counts={s: int((status == s).sum())
+                       for s in ("closed", "survived", "censored", "unknown")},
+        closure_kinds=dict(kinds),
+        auc=metrics.survival_auc(pred[judged], alive),
+        baseline_auc=metrics.survival_auc(base[judged], alive),
+        by_third=[ThirdRow(**r) for r in metrics.closure_by_third(pred, status, failure, churn)],
+        baseline_by_third=[ThirdRow(**r)
+                           for r in metrics.closure_by_third(base, status, failure, churn)],
+        site_churn_auc=metrics.survival_auc(pred, churn == 0),
+        baseline_site_churn_auc=metrics.survival_auc(base, churn == 0),
     )

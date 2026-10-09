@@ -175,6 +175,13 @@ class BusinessProfile(Strict):
             raise ValueError(f"daypart trade_share must sum to 1 (got {total:.2f})")
         return v
 
+    @property
+    def primary_competitors(self) -> list[TagRule]:
+        """The main competitor tags (highest weight): what this business type *is*,
+        e.g. amenity=cafe for a café."""
+        top = max(r.weight for r in self.competitors)
+        return [r for r in self.competitors if r.weight == top]
+
 
 # --- Global model config --------------------------------------------------------------
 
@@ -367,11 +374,31 @@ class SurvivalEvidence(Strict):
     asic: float = Field(ge=0)
 
 
+class SurvivalCfg(Strict):
+    """Fixed-horizon survival: did a business close within horizon_months of opening?"""
+
+    horizon_months: int = Field(ge=1)
+    site_radius_m: float = Field(gt=0)
+    remap_radius_m: float = Field(gt=0)
+    remap_window_months: int = Field(ge=0)
+    successor_window_months: int = Field(ge=0)
+    overture_min_confidence: float = Field(ge=0, le=1)
+
+
+class OpeningCheckCfg(Strict):
+    """Was a business first mapped in the window really new, or an old one newly mapped?"""
+
+    fsq_created_months_before: int = Field(ge=0)
+    exclude: list[Literal["older", "remapped", "unverified"]]
+
+
 class BacktestCfg(Strict):
     window: tuple[dt.date, dt.date]
     score_months: int = Field(ge=1)
     min_months_open: int = Field(ge=0)
     include_chains: bool
+    opening_check: OpeningCheckCfg
+    survival: SurvivalCfg
     survival_evidence: SurvivalEvidence
     evidence_half_life_months: float = Field(gt=0)
     asic_match_window_months: tuple[int, int]

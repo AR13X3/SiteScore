@@ -73,6 +73,13 @@ TABLES: dict[str, TableSpec] = {
             "Development application events: lodged / approved / refused",
         ),
         TableSpec(
+            "poi_history", "osm_history", "cumulative",
+            ("osm_id", "seq", "name", "lon", "lat", "tags", "deleted", "changeset"),
+            "Every edit of each mapped business (OSM element history). Outcome data: "
+            "backtest only (when a business closed and what replaced it)",
+            model_visible=False,
+        ),
+        TableSpec(
             "places", "google_places", "latest",
             ("place_id", "osm_id", "name", "lon", "lat", "rating", "review_count",
              "business_status"),

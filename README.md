@@ -60,6 +60,7 @@ All sources are official or open data. Details and licences are in [config/sourc
 | ABS ASGS 2021 boundaries | Study area, SA1 centroids, mesh-block land use | SA1 / SA2 / MB | fetched for the area only |
 | Transport for NSW station entries/exits | Commuter foot traffic | Station × month, Jul 2016 onwards | 41 train, metro and light-rail stations |
 | OpenStreetMap (Overpass) | Competitors, anchor tenants, stations | Point; **quarterly historical snapshots** | ~900 points per snapshot |
+| OpenStreetMap element history (OSM API) | Backtest outcomes only: when each café was mapped, when it closed and what replaced it | Every edit of every café element | 245 elements, 701 versions |
 | NSW Planning Portal online DA data | Future residents from development applications | Application → lodged and determined events | 2,767 DAs with new dwellings |
 | NSW Spatial Services address points (Nominatim fallback) | Address search in the UI (`GET /api/geocode?q=`) | Address | live |
 | Google Places (optional) | Backtest outcomes only: reviews, rating, status | Place | needs a key |
@@ -174,20 +175,44 @@ python run.py backtest --cohort demo    # backtests/cohorts/demo.csv
 
 1. **Cohort.**
    - **Your own CSV** in `backtests/cohorts/`, with name, opening month, and lat/lon or an address.
-   - **Or discovery from OSM history.** A business counts as new when it first appears in a quarterly snapshot inside the window set in `config/backtest.yaml` (Nov 2022 to Dec 2024).
-2. **Predict with the past only.** Each business is predicted as of the day before it opened, or the last snapshot before it appeared. Four rules hold:
+   - **Or discovery from OSM history.** A business counts as new when it first appears on the map inside the window set in `config/backtest.yaml` (Nov 2022 to Dec 2024). The date comes from the element's edit history, so it's exact to the day the café was mapped. A café that takes over an existing map element (renamed "Steaming Mug" → "Four Cups") is an opening too.
+2. **Predict with the past only.** Each business is predicted as of the day before it was first mapped. Four rules hold:
    - Its market is built only through the dated as-of view.
-   - It is excluded from its own competitor set.
+   - It is excluded from its own competitor set. For a takeover, the café it replaced is left out too.
    - Every data source it touched is checked again: anything published after the as-of date raises `LeakageError`.
    - The prediction code never reads outcome data.
 
    Tests plant future data and check that predictions don't move.
-3. **Then look at reality.** These signals count as actual performance:
-   - **Survival**, as a weighted vote of every source that knows the business. The weights are in `config/backtest.yaml`, and the report lists each café's evidence.
+3. **Check the opening was real.** "First mapped" often means an old café was mapped for the first time: the map's café count tripled between 2019 and 2026, mostly because mappers caught up. After predicting, each discovered café gets a verdict:
+
+   | Verdict | Rule | Counted? |
+   |---|---|---|
+   | new | took over from another business at the same spot, or Foursquare added it (or its exact name was registered with ASIC) around the opening | yes |
+   | unverified | no other source knows when it opened, or the sources disagree | yes |
+   | older | Foursquare listed it more than 12 months before it was mapped | no |
+   | remapped | the same business was already on the map nearby (a redrawn outline or a retag) | no |
+
+   ASIC can't mark a café "older": the register has no addresses, so an old registration of the same name may belong to another outlet or another town.
+4. **Then look at reality.** All outcome data is read only after every prediction is fixed.
+   - **Survival at 18 months (secondary).** Did the café close within 18 months of opening? This is decided from OpenStreetMap **element histories**: every edit of every café ever mapped, with its date (OSM API, keyless, cached). Only strong evidence counts:
+
+     | Status | Means |
+     |---|---|
+     | closed | a closure was recorded on or before the 18-month mark (dated by the edit; the real closure was on or before it) |
+     | survived | it was still trading after the mark: a mapper edited or checked it then, or it is still on the map **and** an independent listing confirms it after the mark (Google operational, Foursquare refreshed, Overture with confidence ≥ 0.75) |
+     | censored | the 18-month mark hasn't arrived yet |
+     | unknown | anything weaker or contradictory |
+
+     **What a closure became.** "Replaced" means another café took over: the element was renamed, or it was deleted and a different café appeared within 25 m. That's an operator failure, and the site may be fine. "Vacant" (tagged disused) and "other use" (e.g. a café that became a sandwich bar or a gaming centre) are site failures. "Removed" means it was deleted with no successor seen. Name corrections, retags of the same business and re-mapping (deleted, then redrawn nearby under the same name) are not closures.
+
+     **Site churn.** How many cafés have closed at the same spot (within 25 m) since 2019.
+
+     The report gives closure rates by predicted third, for the model and for the baseline.
+   - **Still trading today?** This is a weighted vote of every source that knows the business. The weights are in `config/backtest.yaml`, and the report lists each café's evidence.
 
      | Source | What it says | Weight |
      |---|---|---|
-     | OpenStreetMap | A mapper saw it removed, replaced or tagged disused | 2.0 |
+     | OpenStreetMap | Closed, replaced or vacant (from the element history) | 2.0 |
      | OpenStreetMap | Still on the map | 1.0 |
      | Overture | Listed with a confidence score | 1.0 × confidence |
      | Overture | Not listed | 0.4 (weak) |
@@ -195,33 +220,37 @@ python run.py backtest --cohort demo    # backtests/cohorts/demo.csv
      | ASIC business names | A unique exact name registered around the opening is still registered, or cancelled | 0.75 |
      | Google (with key) | Business status | 3.0 |
 
-     **Name changes:** a corrected name ("Picollo Me" → "Piccolo Me") counts as the same business, while a different business at the same spot counts as a replacement.
-
-     **Older data counts for less:** weights halve every 12 months since the data was collected, so the free Foursquare snapshot from February 2025 counts for about a third.
+     Older data counts for less: weights halve every 12 months since the data was collected.
    - change in weekly opening hours
-   - with a Google Places key: reviews per month since opening and rating
-4. **Accuracy.** Four measures, each compared with a naive "foot traffic only" baseline:
-   - share of pairs ranked correctly (50% = coin flip)
-   - Spearman correlation
-   - survival AUC (does the model rank survivors above closures?)
+   - with a Google Places key: reviews per month since opening, and rating. This is the main performance measure. Survival is secondary.
+5. **Accuracy,** always compared with a naive "foot traffic only" baseline:
+   - share of pairs ranked correctly (50% = coin flip) and Spearman correlation, against the combined actual-performance score
    - top-third vs bottom-third actual percentile
+   - for survival: AUC (survivors above closures), closure rate by predicted third, and whether spots without café closures are predicted above spots with them
 
 **Real Parramatta results (10 Oct 2026, free outcome sources, no Google):**
 
+Discovery found 56 cafés first mapped from Nov 2022 to Dec 2024. The opening check rejected 27 of them:
+- 26 were older cafés mapped late (e.g. Three Beans and Nadia's, both on Foursquare since 2010)
+- 1 had only been redrawn (Gatehouse Tea Rooms)
+
+That leaves 29 cafés: 18 confirmed new (8 of them took over another café's spot) and 11 unverified.
+
 | Measure | Model | Foot traffic only |
 |---|---|---|
-| Pairs ranked correctly | 48% | 51% |
-| Survival AUC | 0.48 | 0.48 |
+| Closed within 18 months | **none of 29** (20 survived, 9 unknown) | |
+| Survival AUC | n/a (no closures) | n/a |
+| Café closures at the same spot since 2019, mean per café, top / middle / bottom predicted third | 0.10 / 0.40 / 0.44 | 0.30 / 0.20 / 0.44 |
+| Spots without closures predicted above spots with them (AUC) | 0.70 | 0.55 |
+| Pairs ranked correctly (combined proxy, no Google) | 51% | 59% |
 
-46 cafés were scored, and the evidence vote marks 2 as closed:
-- **Koko 'n' Beans:** replaced by "XA Expresso"
-- **Mulberry Tree:** replaced by "The Chai Nook"
+**What this does and doesn't show:**
+- **No survival signal can be measured yet.** None of the genuinely new cafés closed within 18 months, so there is nothing to rank against.
+- **The two earlier "closures" weren't 18-month closures.** Koko 'n' Beans and Mulberry Tree were older cafés: Foursquare listed them from 2014 and 2016.
+- **A weak hint on site churn.** The model ranks spots where a café closed before lower than the baseline does (AUC 0.70 vs 0.55). But the 8 spots with any closure are exactly the 8 takeover openings, so this only says the model rates cafés that replaced a failed café lower. Those predecessors' closures were knowable before opening, and the model didn't use them. It's 8 cafés against 21: a hint, not evidence.
+- **The combined performance score is not informative yet.** Without Google it is mostly the "still trading" vote, which barely varies among open cafés.
 
-OSM alone had said 4 closed. Two of those were cafés whose names were corrected on the map, not real closures.
-
-**So far, neither the model nor the baseline beats a coin flip.** Two closures are too few to judge anything. Among open cafés, the survival score mostly reflects how many datasets list a business, not how well it trades.
-
-The missing ingredient is a performance measure for businesses that are still open. Adding `GOOGLE_PLACES_API_KEY` and running `python run.py data --only google_places` adds reviews per month and rating (about 300 requests, capped in `config/sources.yaml`, and likely inside Google's free monthly allowance).
+The missing ingredient is still a performance measure for open cafés. Adding `GOOGLE_PLACES_API_KEY` and running `python run.py data --only google_places` adds reviews per month and rating (about 300 requests, capped in `config/sources.yaml`, and likely inside Google's free monthly allowance).
 
 ## Configuration
 

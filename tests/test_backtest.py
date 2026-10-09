@@ -53,8 +53,8 @@ def test_discovered_businesses_are_new_in_the_window_and_predictable(cohort, moc
     for b in cohort:
         assert BT.window[0] <= b.opened <= BT.window[1]
         assert b.as_of >= ready
-        first_seen = pois.loc[pois["osm_id"] == b.osm_id, "version"].min().date()
-        assert b.as_of < first_seen  # predicted before it ever appears in the data
+        mine = pois[(pois["osm_id"] == b.osm_id) & (pois["name"] == b.name)]
+        assert b.as_of < mine["version"].min().date()  # predicted before it ever appears
 
 
 def test_csv_cohort_with_coordinates(tmp_path, mock_store):

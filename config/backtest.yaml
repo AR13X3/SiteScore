@@ -10,12 +10,53 @@ score_months: 24
 # A business needs at least this long since opening for outcomes to mean much.
 min_months_open: 12
 
-# Discovery: a business counts as new when it first appears in a quarterly OSM
-# snapshot (it opened between that snapshot and the previous one). Chains open
-# on head-office decisions, so they can be left out.
+# Discovery: a business counts as new when it first appears on OpenStreetMap
+# inside the window (first edit as this business, or a quarterly snapshot when
+# there's no element history). Chains open on head-office decisions, so they can
+# be left out.
 include_chains: false
 
-# "Still trading?" is a weighted vote across sources. Each source that knows the
+# "First mapped" is often an old business being mapped for the first time (the
+# map's café count tripled 2019-2026, mostly from mapping, not openings). Each
+# discovered business is checked:
+#   remapped    the same business was already on the map nearby (redrawn, or
+#               retagged e.g. bakery -> café)
+#   new         it replaced another business at the spot, or Foursquare added it /
+#               its exact name was registered with ASIC around the opening
+#   older       Foursquare knew it long before it was mapped (ASIC isn't used for
+#               this: no addresses, so an older same-named business may be elsewhere)
+#   unverified  no other source either way (kept: excluding them would favour
+#               businesses that other sources happen to list)
+opening_check:
+  fsq_created_months_before: 12      # Foursquare added it more than this before -> older
+  exclude: [older, remapped]
+
+# Survival, done strictly: did the business close within horizon_months of
+# opening? Closures come from OpenStreetMap element histories, dated by the edit
+# that recorded them (the real closure was on or before that date).
+#   closed    a closure recorded on or before the horizon
+#   survived  strong evidence it was still trading after the horizon: a mapper
+#             edited or checked it after the horizon, or it's still on the map AND
+#             an independent listing confirms it after the horizon (Google
+#             operational, Foursquare refreshed, Overture with high confidence)
+#   censored  the horizon hasn't arrived yet (too new to judge)
+#   unknown   anything weaker or contradictory (e.g. still on the map but nobody
+#             has confirmed it since the horizon)
+# Kept as a secondary measure: closures are rare, and the main question is how
+# well open businesses trade.
+survival:
+  horizon_months: 18
+  # Businesses within this distance share a shopfront ("the same spot").
+  site_radius_m: 25
+  # Deleted, then the same business mapped again this close and this soon:
+  # a redraw (e.g. point -> building outline), not a closure.
+  remap_radius_m: 60
+  remap_window_months: 6
+  # A different café appearing at the spot this close in time replaced it.
+  successor_window_months: 9
+  overture_min_confidence: 0.75
+
+# "Still trading today?" is a weighted vote across sources. Each source that knows the
 # business says open or closed; survival score = (open - closed) / total weight,
 # from -1 (everyone says closed) to +1 (everyone says open).
 survival_evidence:
@@ -36,9 +77,10 @@ evidence_half_life_months: 12
 asic_match_window_months: [18, 6]
 
 # Actual performance = weighted sum of standardised outcome proxies. Missing
-# proxies are skipped (weights re-normalised over what's available).
+# proxies are skipped (weights re-normalised over what's available). Trading
+# performance leads; survival is secondary (reported on its own, above).
 outcome_weights:
-  survival: 2.0           # survival score from the vote above
   reviews_per_month: 1.0  # Google review count / months open (needs Google Places)
   rating: 0.5             # Google rating (needs Google Places)
+  survival: 0.5           # survival score from the vote above
   hours_change: 0.5       # change in weekly opening hours since first mapped (OSM)

@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import csv
 import datetime as dt
-import json
 import re
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -22,9 +21,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from sitescore.backtest import lifecycle
 from sitescore.config import BacktestCfg, BusinessProfile
 from sitescore.datastore import TABLES, DataStore
-from sitescore.model.market import is_branded, matches
 from sitescore.paths import ROOT
 from sitescore.pipeline.geocode import search as geocode
 
@@ -94,46 +93,38 @@ def load_csv(path: Path, ready: dt.date) -> list[Business]:
 # --- Discovery from OSM history -------------------------------------------------------
 
 
-def primary_rules(profile: BusinessProfile) -> list:
-    """The profile's main competitor tags (highest weight), e.g. amenity=cafe."""
-    top = max(r.weight for r in profile.competitors)
-    return [r for r in profile.competitors if r.weight == top]
+def discover_from_osm(store: DataStore, profile: BusinessProfile, cfg: BacktestCfg,
+                      lifecycles: pd.DataFrame | None = None) -> list[Business]:
+    """Businesses that first appeared on the map inside the window.
 
-
-def discover_from_osm(store: DataStore, profile: BusinessProfile, cfg: BacktestCfg
-                      ) -> list[Business]:
-    pois = store.read("pois")
-    rules = primary_rules(profile)
-    tags = pois["tags"].map(json.loads)
-    keep = tags.map(lambda t: any(matches(t, r) for r in rules))
-    pois = pois[keep].assign(_tags=tags[keep])
-    versions = sorted(pd.to_datetime(pois["version"].unique()))
+    A business is a run of one map element (see lifecycle.py): an element renamed
+    from one café to another holds two businesses, and the second is an opening.
+    Its as-of date is the last moment it wasn't on the map yet, and never before
+    every model input was public.
+    """
+    lc = lifecycle.build(store, profile, cfg.survival) if lifecycles is None else lifecycles
     ready = data_ready_date(store)
     lo, hi = (pd.Timestamp(d) for d in cfg.window)
-
-    first_seen = pois.sort_values("version").drop_duplicates("osm_id", keep="first")
     out = []
-    for _, row in first_seen.iterrows():
-        seen = row["version"]
-        idx = versions.index(seen)
-        if idx == 0:
-            continue  # already there in the first snapshot: not a new opening
-        before = versions[idx - 1]
-        opened = before + (seen - before) / 2
-        if not (lo <= opened <= hi) or not row["name"]:
+    for r in lc.itertuples():
+        if pd.isna(r.opened) or not (lo <= r.opened <= hi) or not r.name:
+            continue  # pd.isna: there from the first snapshot, opening date unknown
+        if r.brand and not cfg.include_chains:
             continue
-        brand = row["_tags"].get("brand") if is_branded(row["_tags"]) else ""
-        if brand and not cfg.include_chains:
-            continue
-        as_of = max(before.date(), ready)
-        if as_of >= seen.date():
+        as_of = max(r.known_before.date(), ready)
+        if pd.notna(r.first_snapshot) and as_of >= r.first_snapshot.date():
             continue  # no way to predict it without seeing it already exist
+        if r.source == "history":
+            note = f"first mapped {r.opened.date()}"
+        else:
+            note = f"first mapped between {r.known_before.date()} and {r.first_snapshot.date()}"
+        if r.predecessor:
+            note += f", taking over from '{r.predecessor}'"
         out.append(Business(
-            name=row["name"], lat=float(row["lat"]), lon=float(row["lon"]),
-            opened=opened.date(), as_of=as_of, osm_id=row["osm_id"], source="osm_first_mapped",
-            opened_note=f"first mapped between {before.date()} and {seen.date()}", brand=brand,
+            name=r.name, lat=r.lat, lon=r.lon, opened=r.opened.date(), as_of=as_of,
+            osm_id=r.osm_id, source="osm_first_mapped", opened_note=note, brand=r.brand,
         ))
-    return sorted(out, key=lambda b: b.opened)
+    return sorted(out, key=lambda b: (b.opened, b.name))
 
 
 # --- Linking a business to its OSM id -------------------------------------------------

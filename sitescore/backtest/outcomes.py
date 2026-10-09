@@ -1,8 +1,11 @@
 """Phase 2 of a backtest: how each business actually did (read only after predicting).
 
 Proxies, from what open data allows:
-- survival: a weighted vote of every source that knows the business (OSM,
-  Overture, Foursquare, ASIC business names, Google) -> survival score -1..+1;
+- survival at a fixed horizon: closed within N months of opening? (strong evidence
+  only: closed / survived / censored / unknown), what replaced it, and how often
+  businesses at the same spot have closed (site churn);
+- still trading today: a weighted vote of every source that knows the business
+  (OSM, Overture, Foursquare, ASIC business names, Google) -> score -1..+1;
 - weekly opening hours: first mapped vs latest (cutting hours is a warning sign);
 - reviews per month since opening and rating (Google Places, when the places
   table describes the same world as the map: real with real, mock with mock).
@@ -18,7 +21,10 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from sitescore.backtest import lifecycle
 from sitescore.backtest.cohort import Business
+from sitescore.backtest.lifecycle import Fate
+from sitescore.config import SurvivalCfg
 from sitescore.datastore import DataStore
 from sitescore.matching import best_match, distance_m, normalise_name, same_business
 
@@ -91,6 +97,21 @@ class Evidence:
 
 
 @dataclass(frozen=True)
+class Horizon:
+    """Did it close within the horizon? Only strong evidence decides."""
+
+    status: str                    # closed | survived | censored | unknown
+    horizon: dt.date               # opening + horizon_months
+    closed_on: dt.date | None      # first recorded closure (the real one was on or before)
+    kind: str | None               # replaced | vacant | other_use | removed (OSM), else None
+    failure: str | None            # operator | site | unknown (closed only)
+    last_seen_trading: dt.date | None
+    detail: str
+    site_closures: int = 0         # café closures at this spot on the map's record
+    site_closures_before: int = 0  # ... of which businesses there before this one
+
+
+@dataclass(frozen=True)
 class Outcome:
     still_open: bool | None        # weighted vote across sources (None: no evidence)
     survival_score: float | None   # (open - closed) / total weight, -1..+1
@@ -102,6 +123,7 @@ class Outcome:
     hours_first: float | None = None
     hours_latest: float | None = None
     notes: list[str] = field(default_factory=list)
+    horizon: Horizon | None = None
 
     @property
     def hours_change(self) -> float | None:
@@ -141,14 +163,22 @@ class _Sources:
 
 def observe(businesses: list[Business], store: DataStore, today: dt.date,
             weights: dict[str, float] | None = None, asic_window: tuple[int, int] = (18, 6),
-            half_life_months: float = 12.0) -> dict[str, Outcome]:
-    """Outcome per business, keyed by osm_id or name."""
+            half_life_months: float = 12.0, lifecycles: pd.DataFrame | None = None,
+            survival: SurvivalCfg | None = None) -> dict[str, Outcome]:
+    """Outcome per business, keyed by osm_id or name.
+
+    lifecycles (lifecycle.build) and survival settings add the fixed-horizon
+    survival outcome and site churn; without them only the vote is computed.
+    """
     w = {"google": 3.0, "osm_closed": 2.0, "osm_open": 1.0, "overture": 1.0,
          "foursquare": 1.0, "asic": 0.75, **(weights or {})}
     src = _Sources.load(store)
     history = src.pois.sort_values("version").groupby("osm_id")
     out = {}
     for b in businesses:
+        run = (lifecycle.run_for(lifecycles, b.osm_id, b.name, b.opened)
+               if lifecycles is not None and b.osm_id else None)
+        fate = lifecycle.fate(lifecycles, run) if run else None
         notes: list[str] = []
         hours_first = hours_latest = None
         if b.osm_id and b.osm_id in history.groups:
@@ -159,7 +189,8 @@ def observe(businesses: list[Business], store: DataStore, today: dt.date,
                 hours_first, hours_latest = known[0], known[-1]
         place = _find_place(b, src.places)
         evidence = [_aged(e, today, half_life_months) for e in (
-            _osm(b, src, history, w["osm_open"], w["osm_closed"]),
+            _osm_fate(fate, src, w["osm_open"], w["osm_closed"]) if fate
+            else _osm(b, src, history, w["osm_open"], w["osm_closed"]),
             _google(place, w["google"]),
             _overture(b, src.overture, w["overture"]),
             _foursquare(b, src.fsq, w["foursquare"]),
@@ -170,11 +201,91 @@ def observe(businesses: list[Business], store: DataStore, today: dt.date,
         notes += [f"{e.source}: {e.detail}" for e in evidence]
         months = max((today - b.opened).days / 30.44, 0.5)
         reviews = int(place["review_count"]) if place is not None else None
+        horizon = None
+        if survival is not None:
+            horizon = _horizon(b, fate, place, src, today, survival)
+            if lifecycles is not None:
+                spot = lifecycle.site_closures(lifecycles, b.lat, b.lon, survival.site_radius_m)
+                began = spot["opened"].fillna(spot["first_snapshot"])
+                earlier = (began < pd.Timestamp(b.opened)) & (spot["run_id"] != run)
+                horizon = dataclasses.replace(horizon, site_closures=len(spot),
+                                              site_closures_before=int(earlier.sum()))
         out[b.osm_id or b.name] = Outcome(
             still_open, score, evidence, months, reviews,
             None if reviews is None else reviews / months,
-            None if place is None else float(place["rating"]), hours_first, hours_latest, notes)
+            None if place is None else float(place["rating"]), hours_first, hours_latest, notes,
+            horizon)
     return out
+
+
+def _horizon(b: Business, fate: Fate | None, place: pd.Series | None, src: _Sources,
+             today: dt.date, cfg: SurvivalCfg) -> Horizon:
+    """Closed within cfg.horizon_months of opening? Strong evidence only.
+
+    Closures: an OSM edit recording it (dated), Foursquare's closing date, Google
+    or Overture "permanently closed" (dated by when that was observed).
+    Still trading on a date: a mapper edited or checked it as this business then,
+    or, while it's still on the map, an independent listing confirmed it then.
+    """
+    horizon = (pd.Timestamp(b.opened) + pd.DateOffset(months=cfg.horizon_months)).date()
+    closures: list[tuple[dt.date, str, str | None]] = []   # (date, detail, OSM kind)
+    trading: list[tuple[dt.date, str]] = []
+    if fate is not None:
+        if fate.closed is not None:
+            closures.append((fate.closed.date(), fate.detail, fate.kind))
+        for when, what in ((fate.last_edit, "edited on OpenStreetMap"),
+                           (fate.checked, "checked on OpenStreetMap")):
+            if when is not None:
+                trading.append((when.date(), what))
+    on_map = fate.on_map_today if fate is not None else False
+    if place is not None:
+        seen = pd.Timestamp(place["version"]).date()
+        if place["business_status"] == "CLOSED_PERMANENTLY":
+            closures.append((seen, "Google: permanently closed", None))
+        elif place["business_status"] == "OPERATIONAL" and on_map:
+            trading.append((seen, "Google: operational"))
+    fsq = best_match(b.name, b.lat, b.lon, src.fsq, max_m=150) if src.fsq is not None else None
+    if fsq is not None:
+        closed = fsq["date_closed"]
+        if pd.notna(closed) and closed >= pd.Timestamp(b.opened) - pd.Timedelta(days=30):
+            closures.append((pd.Timestamp(closed).date(), "Foursquare: marked closed", None))
+        elif pd.isna(closed) and pd.notna(fsq["date_refreshed"]) and on_map:
+            trading.append((pd.Timestamp(fsq["date_refreshed"]).date(), "Foursquare: refreshed"))
+    ov = (best_match(b.name, b.lat, b.lon, src.overture, max_m=150)
+          if src.overture is not None else None)
+    if ov is not None:
+        release = pd.Timestamp(ov["version"]).date()
+        if ov["operating_status"] == "permanently_closed":
+            closures.append((release, "Overture: permanently closed", None))
+        elif float(ov["confidence"]) >= cfg.overture_min_confidence and on_map:
+            trading.append((release, f"Overture: listed ({float(ov['confidence']):.2f})"))
+
+    last_seen, why = max(trading) if trading else (None, "")
+    if closures:
+        closed_on, what, kind = min(closures, key=lambda c: c[0])
+        edited_after = fate is not None and any(
+            w is not None and w.date() > closed_on for w in (fate.last_edit, fate.checked))
+        if closed_on <= horizon:
+            if kind is None and edited_after:   # e.g. Foursquare says closed, a mapper says not
+                return Horizon("unknown", horizon, closed_on, None, None, last_seen,
+                               f"sources disagree: {what} {closed_on}, but edited as open on "
+                               "OpenStreetMap later")
+            return Horizon("closed", horizon, closed_on, kind,
+                           lifecycle.failure_type(kind) or "unknown", last_seen,
+                           f"{what} ({closed_on})")
+    if last_seen is not None and last_seen >= horizon:
+        return Horizon("survived", horizon, None, None, None, last_seen,
+                       f"still trading {last_seen} ({why})")
+    if horizon > today:
+        return Horizon("censored", horizon, None, None, None, last_seen,
+                       f"too new: the {cfg.horizon_months}-month mark is {horizon}")
+    if closures:
+        return Horizon("unknown", horizon, closed_on, kind, None, last_seen,
+                       f"closure recorded {closed_on}, after the horizon; it may have "
+                       "closed earlier")
+    return Horizon("unknown", horizon, None, None, None, last_seen,
+                   "nothing confirms it was trading after the horizon"
+                   + (f" (last confirmed {last_seen})" if last_seen else ""))
 
 
 def _aged(e: Evidence, today: dt.date, half_life_months: float) -> Evidence:
@@ -210,6 +321,15 @@ def _osm(b: Business, src: _Sources, history, w_open: float, w_closed: float
     renamed = row["name"] and row["name"].strip().lower() != b.name.strip().lower()
     return Evidence("osm", True, w_open, "still on OpenStreetMap"
                     + (f" (name now '{row['name']}')" if renamed else ""), as_of)
+
+
+def _osm_fate(fate: Fate, src: _Sources, w_open: float, w_closed: float) -> Evidence:
+    """OSM's view from the business's lifecycle (element history when available).
+    Either way it's what today's map says, so it's dated today for ageing."""
+    today = src.pois["version"].max().date()
+    if fate.closed is not None:
+        return Evidence("osm", False, w_closed, f"{fate.detail} ({fate.closed.date()})", today)
+    return Evidence("osm", True, w_open, "still on OpenStreetMap", today)
 
 
 def _google(place: pd.Series | None, weight: float) -> Evidence | None:

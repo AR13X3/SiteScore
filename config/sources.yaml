@@ -90,6 +90,23 @@ osm:
   snapshots: {start: 2019-01-01, every_months: 3, priority_window: [2022-07-01, 2025-03-01]}
   retry_cooldown_seconds: 90
 
+osm_history:
+  title: OpenStreetMap element history (OSM API v0.6)
+  provider: OpenStreetMap contributors
+  licence: ODbL 1.0
+  url: https://api.openstreetmap.org/api/0.6/{element}/history.json
+  # Every version of every element that was ever one of these business types
+  # (their main competitor tag, e.g. amenity=cafe) in any snapshot. Each edit is
+  # dated, so we learn when a business closed and what it became (another café,
+  # vacant, another use, or deleted). One small request per element, cached.
+  business_types: [cafe]
+  min_seconds_between_requests: 0.3
+  # Histories gain new versions over time: re-fetch cached ones older than this.
+  cache_days: 14
+  published_at: {rule: per_record}                    # each edit's timestamp
+  used_for: backtest outcomes (closure dates, what replaced a business, site churn)
+  needs_key: false
+
 planning_da:
   title: NSW Planning Portal - Online DA data
   provider: NSW Department of Planning, Housing and Infrastructure
