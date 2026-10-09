@@ -41,11 +41,15 @@ export function RevenueChart({ result, sites, dark, metric = "revenue", costs }:
   const [width, setWidth] = useState(800);
   const profit = metric === "profit" && !!costs;
   const option = useMemo<ChartOption>(() => {
-    // Profit is linear in revenue (revenue x (1 - COGS) - fixed costs), so revenue
-    // percentiles map exactly onto profit percentiles.
-    const fixed = costs ? costs.rent_per_month + costs.wages_per_month + costs.other_fixed_per_month : 0;
+    // Profit is linear in revenue (revenue x (1 - COGS) - fixed costs, with each
+    // site's own estimated rent), so revenue percentiles map exactly onto profit ones.
     const margin = costs ? 1 - costs.cogs_share : 1;
-    const toMetric = (revenue: number) => (profit ? revenue * margin - fixed : revenue);
+    const fixedOf = new Map(result.sites.map((s) => [
+      s.site.id,
+      costs ? (s.mature.rent?.monthly ?? costs.rent_per_month) + costs.wages_per_month + costs.other_fixed_per_month : 0,
+    ]));
+    const metricOf = (siteId: string) => (revenue: number) =>
+      profit ? revenue * margin - (fixedOf.get(siteId) ?? 0) : revenue;
     const slotOf = new Map(sites.map((s) => [s.id, s.slot]));
     const months = result.sites[0]?.months.map((m) => m.month) ?? [];
     const text = token("--text-secondary");
@@ -58,8 +62,8 @@ export function RevenueChart({ result, sites, dark, metric = "revenue", costs }:
     const maxLabelPx = Math.min(MAX_LABEL_PX, width * 0.22);
     // ...and only when they don't collide: converging lines get no end labels (nudging
     // them apart would detach them from their lines).
-    const ends = result.sites.map((s) => toMetric(s.months[last]?.revenue ?? 0)).sort((a, b) => a - b);
-    const all = result.sites.flatMap((s) => s.months.map((m) => toMetric(m.revenue)));
+    const ends = result.sites.map((s) => metricOf(s.site.id)(s.months[last]?.revenue ?? 0)).sort((a, b) => a - b);
+    const all = result.sites.flatMap((s) => s.months.map((m) => metricOf(s.site.id)(m.revenue)));
     const span = Math.max(...all, 0) - Math.min(...all, 0) || 1;
     const collide = ends.some((v, i) => i > 0 && ((v - ends[i - 1]) / span) * (CHART_PLOT_PX) < LABEL_GAP_PX);
     const labelEnds = result.sites.length <= DIRECT_LABEL_LIMIT && maxLabelPx >= 70 && !collide;
@@ -70,7 +74,7 @@ export function RevenueChart({ result, sites, dark, metric = "revenue", costs }:
     const bandOf = new Map(
       result.uncertainty?.sites.map((u) => [
         u.site_id,
-        { p10: u.revenue.p10.map(toMetric), p90: u.revenue.p90.map(toMetric) },
+        { p10: u.revenue.p10.map(metricOf(u.site_id)), p90: u.revenue.p90.map(metricOf(u.site_id)) },
       ]) ?? [],
     );
     const lineIds = new Set(result.sites.map((s) => s.site.id));
@@ -157,7 +161,7 @@ export function RevenueChart({ result, sites, dark, metric = "revenue", costs }:
           id: s.site.id,
           z: 3,
           name: s.site.label || s.site.id,
-          data: s.months.map((m) => Math.round(toMetric(m.revenue))),
+          data: s.months.map((m) => Math.round(profit && m.profit !== null ? m.profit : m.revenue)),
           color,
           smooth: 0.2,
           lineStyle: { width: 2, cap: "round", join: "round" },

@@ -35,7 +35,7 @@ Results update automatically:
 
 More controls:
 
-- **Running costs:** the rent, wages, cost-of-goods and other-cost inputs drive profit, break-even and each site's chance of a 36-month loss. The defaults come from the business profile, and changes are sent to the model as overrides.
+- **Running costs:** the rent, wages, cost-of-goods and other-cost inputs drive profit, break-even and each site's chance of a 36-month loss. The defaults come from the business profile, and changes are sent to the model as overrides. The rent input is the rent of a typical site; each site's own rent is estimated from it (see [Site-specific rent](#site-specific-rent)).
 - **Data as of:** run the model as it would have looked on a past date. Only data published by then is used, from 12 Oct 2022 (when the last Census release came out) to today.
 - **Find spots:** draw a circle on the map and get the best places inside it, either vacant shopfronts or anywhere on a shopping strip, ranked by revenue or profit (see [Finding the best spots](#finding-the-best-spots)).
 - **Backtest screen:** the time-safe backtest, with:
@@ -152,6 +152,27 @@ potential customers × demographic fit × anchor boost × gravity share
 
 Our own price stays at the profile's price by default. The model also reports the price it would choose to maximise margin.
 
+### Site-specific rent
+
+There's no open data on commercial asking rents, so each site's rent is an index on the business profile's `rent_per_month`, which is now the rent of a **typical** site:
+
+```
+rent = rent_per_month × (foot traffic / typical)^0.5 × (local residential rent / regional)^0.5
+```
+
+The index is clipped to 0.5–2.5×.
+
+- **Foot traffic:** people within walking reach of the site, weighted by how much they're around when the business trades, times the anchor boost. It deliberately leaves out participation, so rent doesn't move with assumptions about who buys coffee. "Typical" is the median at the places where this kind of business already trades.
+- **Local rents:** the Census 2021 median weekly rent, population-weighted within 800 m, compared with the median across the market. It stands in for land values.
+- **The idea:** landlords price shopfronts by passing trade.
+
+For example, Church St CBD gets 3× typical foot traffic and is estimated at $11.7k a month, Epping at $10.5k, and suburban Carlingford at $5.1k. That's roughly the 2–3× gap between prime and suburban retail rents, but nothing calibrates it yet.
+
+Rent changes profit, break-even, the chance of a loss (Monte Carlo), the spot finder's profit ranking, and an extra "profit after site-specific rent" rung in the backtest's "which layers help?" comparison. The elasticities, radius and range are assumptions, set in `config/model.yaml` under `rent`. Better sources would replace them:
+
+- **NSW Valuer General bulk land values:** free, CC BY 4.0, monthly CSVs per council. The site blocks automated downloads, though, so someone has to download a file in a browser first.
+- **Real asking rents:** from a listings API such as Domain's (needs an account).
+
 ### Uncertainty bands
 
 Each simulation draws the uncertain assumptions 300 times. The list and the distributions are in `config/model.yaml` under `montecarlo`:
@@ -206,7 +227,7 @@ The **Find spots** tab on the Compare screen searches an area for you. Click the
   3. The top 5 get Monte Carlo ranges and a chance of a loss.
   4. Any result can be added to the comparison, or "Compare the top 3" adds three at once.
 - **Speed:** about 3–9 s per search; the dense CBD is the slowest. In three test areas, the full model's top 5 were always the quick score's top 5 (Spearman 0.88–0.99), so the shortlist of 12 leaves a wide margin.
-- **Revenue or profit:** while running costs are the same everywhere, ranking by profit gives the same order as ranking by revenue (profit = revenue × (1 − cost of goods) − fixed costs). A site-specific rent proxy would change that.
+- **Revenue or profit:** ranking by profit uses each spot's estimated rent, so a busy corner with a high rent can rank below a quieter, cheaper one. In a 3 km search around the CBD, the spot by Parramatta station (about $17k a month) drops out of the profit top 5 in favour of a cheaper strip.
 - **Limits:**
   - Vacant shopfronts are leads to check, not listings: coverage depends on local mappers, and there's no rent, size or agent.
   - A vacancy is only known from the day it was fetched, so a run "as of" an earlier date sees none.

@@ -61,7 +61,8 @@ class SpotOut(BaseModel):
     prob_loss: float | None
     prob_best: float | None
     headline: str
-    quick_monthly: float
+    quick_monthly: float            # quick-score monthly revenue, or profit when ranked by it
+    rent_monthly: float | None      # estimated rent at this spot
 
 
 class GridPoint(BaseModel):
@@ -146,10 +147,11 @@ def _cached(store: DataStore, business_type: str, lat: float, lon: float, radius
                      f"best {cfg.search.shortlist}, at least {cfg.search.min_separation_m:.0f} m "
                      "apart, are re-run with the full model.")
     if rank_by == "profit":
-        notes.append("Ranked by profit: the same order as revenue while running costs are the "
-                     "same everywhere. Site-specific rent would change that.")
+        notes.append("Ranked by profit, with each spot's estimated rent (from foot traffic and "
+                     "local rents): a busy corner with a high rent can rank below a cheaper one.")
 
     found = find_spots(market, candidates, profile, cfg, region, load_calendar(region.state),
+                       rank_by,  # type: ignore[arg-type]
                        min_separation_m=0 if where == "vacant" else None)
     quick = dict(zip((c.id for c in found.candidates), found.quick, strict=True))
     spots = []
@@ -174,6 +176,7 @@ def _cached(store: DataStore, business_type: str, lat: float, lon: float, radius
                               if u and u.total_profit else None),
                 prob_loss=u.prob_loss if u else None, prob_best=u.prob_best if u else None,
                 headline=heads.get(site_id, ""), quick_monthly=float(quick.get(site_id, 0.0)),
+                rent_monthly=s.mature.rent.monthly if s.mature.rent else None,
             ))
     grid = [GridPoint(lat=c.lat, lon=c.lon, quick_monthly=float(q))
             for c, q in zip(found.candidates, found.quick, strict=True)] if where == "anywhere" else []

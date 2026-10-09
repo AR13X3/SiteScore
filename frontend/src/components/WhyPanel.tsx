@@ -121,6 +121,11 @@ function WhyCard({ explanation: e, sim, color, number, maxLog, compare, odds }: 
               <strong>{l.label}.</strong> {l.summary}
             </li>
           ))}
+          {sim.mature.rent && (
+            <li>
+              <strong>Rent.</strong> {sim.mature.rent.summary}
+            </li>
+          )}
         </ul>
       </details>
     </article>

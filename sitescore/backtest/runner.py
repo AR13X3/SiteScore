@@ -100,7 +100,7 @@ def run_backtest(businesses: list[Business], cohort: str, store: DataStore,
             name=b.name, osm_id=b.osm_id, lat=b.lat, lon=b.lon, opened=b.opened,
             opened_note=b.opened_note, opening_check=check.verdict, opening_detail=check.detail,
             as_of=b.as_of, data_cutoff=p.data_cutoff,
-            predicted_score=p.score, predicted_rank=int(pred_rank[i]),
+            predicted_score=p.score, predicted_profit=p.profit, predicted_rank=int(pred_rank[i]),
             mature_monthly=p.mature_monthly, demand_only=p.demand_only, layers=p.layers,
             actual=Actual(still_open=o.still_open, status_source=o.status_source,
                           survival_score=o.survival_score,
@@ -176,7 +176,9 @@ def _accuracy(pred, base, actual) -> Accuracy:
 def _ladder(predictions, outcomes: list[Outcome], actual_scores: np.ndarray
             ) -> list[OutcomeComparison]:
     """Which model layers help, outcome by outcome (time-safe: predictions as of opening)."""
-    scores = metrics.ladder_scores([p.layers for p in predictions])
+    profit = (np.array([p.profit for p in predictions], float)
+              if predictions and all(p.profit is not None for p in predictions) else None)
+    scores = metrics.ladder_scores([p.layers for p in predictions], profit)
     h = [o.horizon for o in outcomes]
     survived = np.array([{"survived": 1.0, "closed": 0.0}.get(x.status, np.nan) if x else np.nan
                          for x in h])

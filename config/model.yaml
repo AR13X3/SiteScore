@@ -116,6 +116,21 @@ developments:
     - {max_dwellings: 100000, months: 42}
   occupancy_ramp_months: 6           # new buildings fill up gradually
 
+# --- Rent: site-specific ------------------------------------------------------------
+# The profile's costs.rent_per_month is the rent of a TYPICAL site for the business
+# (median foot traffic among existing ones, median local rents). A site's rent is
+#   rent_per_month x (foot traffic / typical) ^ footfall_elasticity
+#                  x (local residential rent / regional) ^ area_rent_elasticity
+# clipped to index_range. Landlords price shopfronts by passing trade; local
+# residential rents (Census) stand in for land values. All assumptions, until real
+# asking rents (e.g. listings) or Valuer General land values can calibrate them.
+rent:
+  enabled: true
+  footfall_elasticity: 0.5     # foot traffic doubles -> rent x1.41
+  area_rent_elasticity: 0.5
+  area_radius_m: 800           # residential rents averaged within this distance
+  index_range: [0.5, 2.5]
+
 # --- Finding the best spots in an area ------------------------------------------
 # The user draws a circle; candidates are vacant shopfronts in it, or a grid over
 # it. Every candidate gets a quick score (demand x fit x anchors x Huff share:

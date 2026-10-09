@@ -25,6 +25,7 @@ from sitescore.model.types import DataUsed, Site
 class Prediction:
     business: Business
     score: float                 # projected revenue over the first score_months
+    profit: float | None         # projected profit over them, with the site's estimated rent
     mature_monthly: float
     demand_only: float           # naive baseline: potential customers within walking distance
     layers: dict[str, float]
@@ -53,9 +54,11 @@ def predict(b: Business, store: DataStore, profile: BusinessProfile, cfg: ModelC
         raise LeakageError(f"{b.name} is in its own competitor set")
 
     layers = {layer.key: layer.factor for layer in result.mature.layers}
+    months = result.months[:score_months]
     return Prediction(
         business=b,
-        score=sum(m.revenue for m in result.months[:score_months]),
+        score=sum(m.revenue for m in months),
+        profit=None if months[0].profit is None else sum(m.profit for m in months),
         mature_monthly=result.mature.monthly_revenue,
         demand_only=layers.get("demand", 0.0),
         layers=layers,

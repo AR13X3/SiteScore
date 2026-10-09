@@ -55,6 +55,7 @@ def census_features(zip_path: Path) -> pd.DataFrame:
         "sa1_code": g02["SA1_CODE_2021"],
         "median_income_personal_weekly": g02["Median_tot_prsnl_inc_weekly"],
         "median_income_household_weekly": g02["Median_tot_hhd_inc_weekly"],
+        "median_rent_weekly": g02["Median_rent_weekly"],
     }), on="sa1_code", how="left")
     hh = g42["Tot_Tot"]
     out = out.merge(pd.DataFrame({
@@ -141,6 +142,8 @@ class AbsCensus(Adapter):
             "hh_lone_or_group_share": np.clip(0.17 + 0.22 * apt + rng.normal(0, 0.04, n), 0.03, 0.7),
             "dwelling_apartment_share": apt,
             "tenure_renter_share": np.clip(0.25 + 0.45 * apt + rng.normal(0, 0.06, n), 0.05, 0.9),
+            # Rents follow incomes and centrality (apartments cluster near centres).
+            "median_rent_weekly": np.clip(income_p * rng.normal(0.62, 0.06, n) + 120 * apt, 250, 1200).round(),
         })
         src = ctx.source(self.source_id)
         return {"areas": stamp(df, published_at=src.published_at.date,

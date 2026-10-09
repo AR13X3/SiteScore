@@ -18,6 +18,8 @@ LADDER: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("price", "+ competitors' price response", ("price",)),
     ("full", "Full model (+ spend, capacity)", ("spend", "capacity")),
 )
+# Scores that aren't a product of layers, compared alongside the ladder.
+EXTRA_RUNGS = {"profit": "Profit, after site-specific rent"}
 
 
 def pairwise_accuracy(pred: np.ndarray, actual: np.ndarray) -> tuple[float | None, int]:
@@ -92,12 +94,16 @@ def closure_by_third(pred: np.ndarray, status: np.ndarray, failure: np.ndarray,
     return rows
 
 
-def ladder_scores(layers: list[dict[str, float]]) -> dict[str, np.ndarray]:
-    """Each rung's score per business: the running product of its layer factors."""
+def ladder_scores(layers: list[dict[str, float]], profit: np.ndarray | None = None
+                  ) -> dict[str, np.ndarray]:
+    """Each rung's score per business: the running product of its layer factors, plus
+    profit after site-specific rent when available."""
     out, running = {}, np.ones(len(layers))
     for key, _, keys in LADDER:
         running = running * np.array([math.prod(lay.get(k, 1.0) for k in keys) for lay in layers])
         out[key] = running
+    if profit is not None and len(profit) and not np.isnan(np.asarray(profit, float)).any():
+        out["profit"] = np.asarray(profit, float)
     return out
 
 
@@ -116,7 +122,9 @@ def ladder_comparison(scores: dict[str, np.ndarray], outcome: np.ndarray, n_boot
     base = scores[LADDER[0][0]][ok]
     base_boot = _boot_spearman(base, y, boot)
     rows = []
-    for key, label, _ in LADDER:
+    rungs = [(k, label) for k, label, _ in LADDER] + [
+        (k, label) for k, label in EXTRA_RUNGS.items() if k in scores]
+    for key, label in rungs:
         s = scores[key][ok]
         pw, pairs = pairwise_accuracy(s, y)
         rho_boot = _boot_spearman(s, y, boot)

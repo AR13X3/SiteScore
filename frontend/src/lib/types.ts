@@ -29,6 +29,15 @@ export interface DataUsed {
   latest_published: string | null;
 }
 
+export interface RentEstimate {
+  monthly: number;
+  base: number;
+  index: number;
+  footfall_index: number;
+  area_index: number;
+  summary: string;
+}
+
 export interface SiteResult {
   site: Site;
   business_type: string;
@@ -38,6 +47,7 @@ export interface SiteResult {
   monthly_profit: number | null;
   avg_transaction_value: number;
   segment_visits: Record<string, number>;
+  rent?: RentEstimate | null;
   layers: Layer[];
   data_used: DataUsed[];
 }
@@ -374,6 +384,7 @@ export interface Spot {
   prob_best: number | null;
   headline: string;
   quick_monthly: number;
+  rent_monthly: number | null;
 }
 
 export interface GridPoint {

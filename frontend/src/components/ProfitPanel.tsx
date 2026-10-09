@@ -37,6 +37,8 @@ export function ProfitPanel({ costs, defaults, onChange, result, sites, dark }: 
   const set = (patch: Partial<Costs>) => onChange({ ...costs, ...patch });
   const fixed = costs.rent_per_month + costs.wages_per_month + costs.other_fixed_per_month;
   const breakEven = fixed / Math.max(0.01, 1 - costs.cogs_share);
+  const rents = (result?.sites ?? []).map((s) => s.mature.rent?.monthly).filter((r): r is number => r != null);
+  const siteRent = new Map(result?.sites.map((s) => [s.site.id, s.mature.rent]) ?? []);
   const edited = JSON.stringify(costs) !== JSON.stringify(defaults);
   const slotOf = new Map(sites.map((s) => [s.id, s.slot]));
   const odds = new Map(result?.uncertainty?.sites.map((u) => [u.site_id, u]));
@@ -52,7 +54,7 @@ export function ProfitPanel({ costs, defaults, onChange, result, sites, dark }: 
         )}
       </div>
       <div className="cost-grid">
-        <MoneyInput label="Rent" value={costs.rent_per_month} onChange={(v) => set({ rent_per_month: v })} />
+        <MoneyInput label="Rent, typical site" value={costs.rent_per_month} onChange={(v) => set({ rent_per_month: v })} />
         <MoneyInput label="Wages" value={costs.wages_per_month} onChange={(v) => set({ wages_per_month: v })} />
       </div>
       <details className="cost-more">
@@ -81,14 +83,25 @@ export function ProfitPanel({ costs, defaults, onChange, result, sites, dark }: 
         </div>
       </details>
       <p className="muted small">
-        Breaks even at {money(breakEven)} revenue a month ({money(fixed)} fixed costs, {pct(costs.cogs_share)} cost of
-        goods).
+        {rents.length ? (
+          <>
+            Rent is estimated per site from foot traffic and local rents: {money(Math.min(...rents))}
+            {rents.length > 1 && Math.max(...rents) !== Math.min(...rents) ? ` to ${money(Math.max(...rents))}` : ""} a month
+            here. A typical site breaks even at {money(breakEven)} revenue a month.
+          </>
+        ) : (
+          <>
+            A typical site breaks even at {money(breakEven)} revenue a month ({money(fixed)} fixed costs,{" "}
+            {pct(costs.cogs_share)} cost of goods).
+          </>
+        )}
       </p>
       {result && (
         <table className="profit-table">
           <thead>
             <tr>
               <th scope="col">Site</th>
+              <th scope="col" title="Estimated rent at this site">Rent/mo</th>
               <th scope="col">36-month profit</th>
               <th scope="col">Chance of loss</th>
             </tr>
@@ -103,6 +116,9 @@ export function ProfitPanel({ costs, defaults, onChange, result, sites, dark }: 
                       {(slotOf.get(s.site.id) ?? 0) + 1}
                     </span>
                     <span className="profit-name">{s.site.label}</span>
+                  </td>
+                  <td className="num" title={siteRent.get(s.site.id)?.summary}>
+                    {siteRent.get(s.site.id) ? money(siteRent.get(s.site.id)!.monthly) : "–"}
                   </td>
                   <td className="num">
                     {s.total_profit === null ? "–" : money(s.total_profit)}

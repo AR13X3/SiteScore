@@ -80,7 +80,8 @@ def test_cross_section_is_labelled_and_complete(report, mock_store):
     assert sorted(r.predicted_rank for r in report.rows) == list(range(1, report.n + 1))
     # mock reviews describe the same world as the mock map, so they're compared
     reviews = next(o for o in report.outcomes if o.outcome == "reviews_per_month")
-    assert reviews.available and len(reviews.steps) == len(LADDER)
+    assert reviews.available and len(reviews.steps) == len(LADDER) + 1  # + profit after rent
+    assert reviews.steps[-1].key == "profit"
     # chains are left out by default
     pois = mock_store.read("pois")
     branded = set(pois.loc[pois["tags"].str.contains('"brand"'), "osm_id"])

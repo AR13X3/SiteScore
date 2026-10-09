@@ -78,22 +78,26 @@ def cross_section(store: DataStore, profile: BusinessProfile, cfg: ModelConfig, 
     pop = population(lc, store, bt.include_chains)
     market = build_market(store.as_of(today), profile, cfg, region)
 
-    layers, monthly = [], []
+    layers, monthly, profits, rents = [], [], [], []
     for r in pop.itertuples():
         site = Site(id=r.osm_id, label=r.name, lat=r.lat, lon=r.lon)
         result = analyse_site(market.without({r.osm_id}), site, profile, cfg, region).result
         layers.append({layer.key: layer.factor for layer in result.layers})
         monthly.append(result.monthly_revenue)
+        profits.append(result.monthly_profit)
+        rents.append(result.rent.monthly if result.rent else None)
 
     src = OutcomeTables.load(store)
     rows_data = [_outcomes(r, lc, src, today, bt.survival.site_radius_m)
                  for r in pop.itertuples()]
-    scores = metrics.ladder_scores(layers)
+    scores = metrics.ladder_scores(
+        layers, np.array(profits, float) if all(p is not None for p in profits) else None)
     ranks = 1 + np.argsort(np.argsort(-scores["full"], kind="stable"))
     rows = [CrossSectionRow(
         name=r.name, osm_id=r.osm_id, lat=r.lat, lon=r.lon,
         first_mapped=r.opened.date() if pd.notna(r.opened) else None,
         predicted_rank=int(ranks[i]), mature_monthly=monthly[i], layers=layers[i],
+        mature_profit=profits[i], rent_monthly=rents[i],
         **rows_data[i],
     ) for i, r in enumerate(pop.itertuples())]
 

@@ -52,7 +52,15 @@ from sitescore.model.game import solve_prices
 from sitescore.model.huff import compute_competition
 from sitescore.model.market import Market
 from sitescore.model.site import SiteAnalysis, analyse_site
-from sitescore.model.types import Band, ParameterRange, Site, SiteUncertainty, Uncertainty
+from sitescore.model.spend import site_costs
+from sitescore.model.types import (
+    Band,
+    ParameterRange,
+    RentEstimate,
+    Site,
+    SiteUncertainty,
+    Uncertainty,
+)
 
 # Parameters fast mode knows how to re-apply. Anything else needs mode: full.
 FAST_PARAMETERS = (
@@ -264,7 +272,7 @@ def fast_site_draws(a: SiteAnalysis, comp: MonthlyComponents, market: Market,
     months = len(comp.months)
     if a.result.monthly_revenue <= 0 and not comp.development.any():
         zeros = np.zeros((n, months))
-        return SiteDraws(zeros, None if profile.costs is None else _profit(zeros, profile))
+        return SiteDraws(zeros, _profit(zeros, profile, a.result.rent))
 
     def pv(key: str, fallback: float) -> np.ndarray:
         return _value(draws, base, key, fallback, n)
@@ -300,7 +308,7 @@ def fast_site_draws(a: SiteAnalysis, comp: MonthlyComponents, market: Market,
     atv_draw = pv("profile.spend.avg_transaction_value", profile.spend.avg_transaction_value)
     atv = comp.atv * atv_draw / profile.spend.avg_transaction_value
     _, revenue, _ = assemble(base_visits, development, ramp, atv, comp.capacity)
-    return SiteDraws(revenue, None if profile.costs is None else _profit(revenue, profile))
+    return SiteDraws(revenue, _profit(revenue, profile, a.result.rent))
 
 
 def _relative(values: np.ndarray, base: float) -> np.ndarray:
@@ -308,8 +316,12 @@ def _relative(values: np.ndarray, base: float) -> np.ndarray:
     return values / base if base > 0 else np.ones_like(values)
 
 
-def _profit(revenue: np.ndarray, profile: BusinessProfile) -> np.ndarray:
-    c = profile.costs
+def _profit(revenue: np.ndarray, profile: BusinessProfile, rent: RentEstimate | None
+            ) -> np.ndarray | None:
+    """Monthly profit draws with this site's rent (rent itself isn't drawn)."""
+    c = site_costs(profile.costs, rent)
+    if c is None:
+        return None
     return revenue * (1 - c.cogs_share) - (c.rent_per_month + c.wages_per_month
                                            + c.other_fixed_per_month)
 
@@ -321,6 +333,7 @@ def full_site_draws(market: Market, site: Site, profile: BusinessProfile, cfg: M
                     region: Region, calendar: Calendar, open_date: dt.date,
                     draws: dict[str, np.ndarray], n: int) -> SiteDraws:
     revenue = np.empty((n, cfg.horizon_months))
+    rent = None
     for i in range(n):
         p_data, m_data = profile.model_dump(), cfg.model_dump()
         for key, values in draws.items():
@@ -330,7 +343,8 @@ def full_site_draws(market: Market, site: Site, profile: BusinessProfile, cfg: M
         result = analyse_site(market, site, p, m, region).result
         points, _ = project_site(result, market, p, m, region.metric_crs, calendar, open_date)
         revenue[i] = [pt.revenue for pt in points]
-    return SiteDraws(revenue, None if profile.costs is None else _profit(revenue, profile))
+        rent = result.rent  # doesn't depend on the drawn parameters
+    return SiteDraws(revenue, _profit(revenue, profile, rent))
 
 
 # --- Summary ----------------------------------------------------------------------------------

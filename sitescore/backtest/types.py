@@ -52,6 +52,7 @@ class BacktestRow(BaseModel):
     as_of: dt.date               # prediction used only data published by this date
     data_cutoff: dt.date | None  # newest publication date actually used (<= as_of)
     predicted_score: float       # projected revenue over the first score_months
+    predicted_profit: float | None = None  # ... and profit, with the site's estimated rent
     predicted_rank: int
     mature_monthly: float
     demand_only: float           # naive baseline input
@@ -153,6 +154,8 @@ class CrossSectionRow(BaseModel):
     predicted_rank: int
     mature_monthly: float
     layers: dict[str, float]
+    mature_profit: float | None = None  # with the site's estimated rent
+    rent_monthly: float | None = None
     reviews: int | None
     reviews_per_month: float | None   # reviews / months since first known (6-120)
     rating: float | None

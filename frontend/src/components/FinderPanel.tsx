@@ -125,7 +125,10 @@ export function FinderPanel(props: Props) {
                         <strong>{money(value)}</strong> {profit ? "profit" : "revenue"} over 36 months
                         {range && <span className="muted"> · {money(range[0])} to {money(range[1])}</span>}
                       </div>
-                      {sp.prob_loss !== null && <div className="muted small">Chance of a loss: {pct(sp.prob_loss)}</div>}
+                      <div className="muted small">
+                        {sp.prob_loss !== null && <>Chance of a loss: {pct(sp.prob_loss)}</>}
+                        {sp.rent_monthly !== null && <> · est. rent {money(sp.rent_monthly)}/month</>}
+                      </div>
                     </div>
                     <button className="btn btn--small" disabled={added || !canAdd} onClick={() => props.onAdd(sp)}>
                       {added ? "Added" : "Compare"}

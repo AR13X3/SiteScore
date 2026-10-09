@@ -21,4 +21,5 @@ FEATURES: dict[str, str] = {
     "hh_lone_or_group_share": "Share of households that are lone-person or group households",
     "dwelling_apartment_share": "Share of occupied dwellings that are flats or apartments",
     "tenure_renter_share": "Share of occupied dwellings that are rented",
+    "median_rent_weekly": "Median weekly residential rent ($), a proxy for local property costs",
 }

@@ -26,7 +26,8 @@ from sitescore.model.game import GameResult, solve_prices
 from sitescore.model.geo import project
 from sitescore.model.huff import CompetitionResult, compute_competition
 from sitescore.model.market import Market
-from sitescore.model.spend import SpendResult, compute_spend, monthly_profit
+from sitescore.model.rent import estimate_rent
+from sitescore.model.spend import SpendResult, compute_spend, monthly_profit, site_costs
 from sitescore.model.types import DataUsed, LayerResult, Site, SiteResult
 
 SEGMENT_LABELS = {"residents": "residents", "workers": "workers", "commuters": "commuters"}
@@ -128,6 +129,7 @@ def analyse_site(market: Market, site: Site, profile: BusinessProfile, cfg: Mode
         ))
     product = math.prod(layer.factor for layer in layers)
     assert math.isclose(product, spend.revenue, rel_tol=1e-6, abs_tol=1e-6), (product, spend.revenue)
+    rent = estimate_rent(sx, sy, demand, market, profile, cfg)
 
     result = SiteResult(
         site=site,
@@ -135,10 +137,11 @@ def analyse_site(market: Market, site: Site, profile: BusinessProfile, cfg: Mode
         as_of=market.as_of,
         monthly_visits=spend.visits,
         monthly_revenue=spend.revenue,
-        monthly_profit=monthly_profit(spend.revenue, profile.costs),
+        monthly_profit=monthly_profit(spend.revenue, site_costs(profile.costs, rent)),
         avg_transaction_value=spend.atv,
         segment_visits=spend.uncapped_visits_by_segment,
         ramp=[float(r) for r in agent.ramp] if agent else None,
+        rent=rent,
         layers=layers,
         data_used=[DataUsed(**a.__dict__) for a in market.data_used],
     )

@@ -29,7 +29,7 @@ from sitescore.model.fit import area_multipliers
 from sitescore.model.geo import minutes_to_metres, project, walk_distance
 from sitescore.model.huff import huff_probabilities
 from sitescore.model.market import Market
-from sitescore.model.spend import monthly_profit
+from sitescore.model.spend import monthly_profit, site_costs
 from sitescore.model.types import LayerResult, MonthPoint, Site, SiteResult
 
 
@@ -187,8 +187,9 @@ def project_site(result: SiteResult, market: Market, profile: BusinessProfile, c
     c = monthly_components(result, market, profile, cfg, region_crs, calendar, open_date)
     visits, revenue, dev_revenue = assemble(sum(c.base_by_segment.values()), c.development,
                                             c.ramp, c.atv, c.capacity)
+    costs = site_costs(profile.costs, result.rent)
     points = [MonthPoint(month=m, revenue=float(revenue[i]), visits=float(visits[i]),
-                         profit=monthly_profit(float(revenue[i]), profile.costs),
+                         profit=monthly_profit(float(revenue[i]), costs),
                          development_revenue=float(dev_revenue[i]))
               for i, m in enumerate(c.months)]
     return points, _dynamics_layer(result, revenue, dev_revenue, c.ramp, c.seasonal, c.months,

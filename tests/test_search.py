@@ -91,7 +91,8 @@ def test_search_endpoint(client):
     assert [s["rank"] for s in r["spots"]] == list(range(1, len(r["spots"]) + 1))
     profits = [s["total_profit"] for s in r["spots"]]
     assert profits == sorted(profits, reverse=True)
-    assert r["grid"] and any("same order as revenue" in n for n in r["notes"])
+    assert r["grid"] and any("estimated rent" in n for n in r["notes"])
+    assert all(s["rent_monthly"] > 0 for s in r["spots"])
 
     v = client.post("/api/search", json={**body, "where": "vacant"}).json()
     assert v["grid"] == [] and all(s["kind"] != "Location" for s in v["spots"])

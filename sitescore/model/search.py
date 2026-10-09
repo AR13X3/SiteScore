@@ -10,8 +10,8 @@
 4. The shortlist runs through the full model over 36 months and is ranked by
    revenue or profit; the top results get Monte Carlo ranges.
 
-With the same running costs everywhere, profit is a fixed transformation of
-revenue, so both rankings agree until rent varies by site.
+Ranking by profit uses each site's estimated rent (model/rent.py), so a busy
+corner with a high rent can rank below a quieter, cheaper one.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from __future__ import annotations
 import datetime as dt
 import math
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 
@@ -27,6 +28,8 @@ from sitescore.model.market import Market
 from sitescore.model.simulate import simulate
 from sitescore.model.site import analyse_site
 from sitescore.model.types import SimulationResult, Site
+
+RankBy = Literal["revenue", "profit"]
 
 
 @dataclass(frozen=True)
@@ -49,7 +52,7 @@ class Candidate:
 @dataclass
 class SpotSearch:
     candidates: list[Candidate]
-    quick: np.ndarray           # quick-score monthly revenue per candidate
+    quick: np.ndarray           # quick-score monthly revenue (or profit) per candidate
     shortlisted: list[str]      # candidate ids re-run with the full model
     top: SimulationResult | None
     labels: dict[str, Candidate]
@@ -102,15 +105,18 @@ def nearest_label(market: Market, lat: float, lon: float, within_m: float = 300)
 
 
 def quick_scores(market: Market, candidates: list[Candidate], profile: BusinessProfile,
-                 cfg: ModelConfig, region: Region) -> np.ndarray:
-    """Mature monthly revenue with agents and the price game switched off."""
+                 cfg: ModelConfig, region: Region, rank_by: RankBy = "revenue") -> np.ndarray:
+    """Mature monthly revenue (or profit, with the site's rent) with agents and the
+    price game switched off."""
     fast = cfg.model_copy(update={"abm": cfg.abm.model_copy(update={"enabled": False}),
                                   "game": cfg.game.model_copy(update={"enabled": False})})
-    return np.array([
-        analyse_site(market, Site(id=c.id, label=c.label, lat=c.lat, lon=c.lon), profile, fast,
-                     region).result.monthly_revenue
-        for c in candidates
-    ], dtype=float)
+    out = []
+    for c in candidates:
+        r = analyse_site(market, Site(id=c.id, label=c.label, lat=c.lat, lon=c.lon), profile,
+                         fast, region).result
+        out.append(r.monthly_profit if rank_by == "profit" and r.monthly_profit is not None
+                   else r.monthly_revenue)
+    return np.array(out, dtype=float)
 
 
 def spread(order: np.ndarray, lat: np.ndarray, lon: np.ndarray, k: int, min_sep_m: float
@@ -127,8 +133,8 @@ def spread(order: np.ndarray, lat: np.ndarray, lon: np.ndarray, k: int, min_sep_
 
 def find_spots(market: Market, candidates: list[Candidate], profile: BusinessProfile,
                cfg: ModelConfig, region: Region, calendar: Calendar,
-               open_date: dt.date | None = None, n_runs: int | None = None,
-               min_separation_m: float | None = None) -> SpotSearch:
+               rank_by: RankBy = "revenue", open_date: dt.date | None = None,
+               n_runs: int | None = None, min_separation_m: float | None = None) -> SpotSearch:
     """min_separation_m: defaults to the config's; 0 for real premises (vacant shopfronts
     are distinct even when they're next door to each other)."""
     labels = {c.id: c for c in candidates}
@@ -136,14 +142,14 @@ def find_spots(market: Market, candidates: list[Candidate], profile: BusinessPro
         return SpotSearch([], np.array([]), [], None, labels)
     s = cfg.search
     sep = s.min_separation_m if min_separation_m is None else min_separation_m
-    quick = quick_scores(market, candidates, profile, cfg, region)
+    quick = quick_scores(market, candidates, profile, cfg, region, rank_by)
     lat = np.array([c.lat for c in candidates])
     lon = np.array([c.lon for c in candidates])
     short = spread(np.argsort(-quick, kind="stable"), lat, lon, s.shortlist, sep)
     sites = [Site(id=candidates[i].id, label=candidates[i].label, lat=candidates[i].lat,
                   lon=candidates[i].lon) for i in short]
-    # One pass: every shortlisted spot over 36 months, ranges for the best few. (Same
-    # order by revenue or profit while running costs don't vary by site.)
+    # One pass: every shortlisted spot over 36 months, ranges for the best few.
     full = simulate(market, sites, profile, cfg, region, calendar, open_date,
-                    uncertainty=True, n_runs=n_runs, uncertainty_top=s.results)
+                    uncertainty=True, n_runs=n_runs, uncertainty_top=s.results,
+                    uncertainty_by=rank_by)
     return SpotSearch(candidates, quick, [candidates[i].id for i in short], full, labels)

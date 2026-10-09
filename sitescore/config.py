@@ -278,6 +278,16 @@ class DevelopmentsCfg(Strict):
     occupancy_ramp_months: int = Field(ge=0)
 
 
+class RentCfg(Strict):
+    """Site-specific rent index (see config/model.yaml)."""
+
+    enabled: bool
+    footfall_elasticity: float = Field(ge=0)
+    area_rent_elasticity: float = Field(ge=0)
+    area_radius_m: float = Field(gt=0)
+    index_range: tuple[float, float]
+
+
 class SearchCfg(Strict):
     """Finding the best spots inside an area the user draws."""
 
@@ -300,6 +310,7 @@ class ModelConfig(Strict):
     game: GameCfg
     montecarlo: MonteCarloCfg
     developments: DevelopmentsCfg
+    rent: RentCfg
     search: SearchCfg
 
 

@@ -103,7 +103,8 @@ spend:
   capacity_visits_per_month: 15000
 
 costs:                           # optional, enables the profit view
-  rent_per_month: 7000           # ~80 m2 retail, Parramatta (assumption)
+  rent_per_month: 7000           # a TYPICAL site: ~80 m2 retail, Parramatta (assumption); each
+                                 # site's rent is scaled from this (model.yaml: rent)
   wages_per_month: 26000         # ~4.5 FTE (assumption)
   cogs_share: 0.30               # of revenue
   other_fixed_per_month: 2500

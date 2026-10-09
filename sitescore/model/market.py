@@ -44,13 +44,17 @@ class Venues:
     x: np.ndarray
     y: np.ndarray
     weight: np.ndarray  # attractiveness for competitors, pull for anchors
+    # Competitors only: True where the venue IS this business type (e.g. a café,
+    # not a bakery that also sells coffee).
+    primary: np.ndarray | None = None
 
     def __len__(self) -> int:
         return len(self.ids)
 
     def without(self, ids: set[str]) -> Venues:
         keep = ~np.isin(self.ids, list(ids))
-        return Venues(*(getattr(self, f.name)[keep] for f in fields(self)))
+        return Venues(*(None if getattr(self, f.name) is None else getattr(self, f.name)[keep]
+                        for f in fields(self)))
 
 
 @dataclass
@@ -68,6 +72,8 @@ class Market:
     # DAs approved as of the run date: da_id, x, y, new_dwellings, approved (Timestamp).
     developments: pd.DataFrame = field(default_factory=pd.DataFrame)
     data_used: list[Access] = field(default_factory=list)
+    # Per-market memo for derived values (e.g. what a typical site looks like for rent).
+    memo: dict = field(default_factory=dict, repr=False, compare=False)
 
     def segment(self, name: str) -> PointSet:
         return {"residents": self.residents, "workers": self.workers,
@@ -89,6 +95,9 @@ def build_market(view: AsOfView, profile: BusinessProfile, cfg: ModelConfig, reg
     """
     crs = region.metric_crs
     areas = view.table("areas")
+    for feature in FEATURES:  # data processed before a feature existed: unknown, not an error
+        if feature not in areas:
+            areas = areas.assign(**{feature: np.nan})
     workers = view.table("workers")
     stations = view.table("station_usage")
     pois = view.table("pois")
@@ -101,10 +110,14 @@ def build_market(view: AsOfView, profile: BusinessProfile, cfg: ModelConfig, reg
         people = people * areas[scale].to_numpy(float)
 
     competitors = _match_venues(pois, profile.competitors, crs, exclude_osm_ids)
-    is_chain = np.array([is_branded(t) for t in competitors.pop("_tags")])
+    competitor_tags = competitors.pop("_tags")
+    is_chain = np.array([is_branded(t) for t in competitor_tags])
     attract = np.where(is_chain, cfg.competitor_attractiveness.chain,
                        cfg.competitor_attractiveness.default)
     competitors_v = _venues(competitors, crs, competitors["_weight"].to_numpy() * attract)
+    primary_rules = profile.primary_competitors
+    competitors_v = replace(competitors_v, primary=np.array(
+        [any(matches(t, r) for r in primary_rules) for t in competitor_tags], dtype=bool))
     anchors = _match_venues(pois, profile.anchors.items, crs, exclude_osm_ids)
     anchors.pop("_tags")
 

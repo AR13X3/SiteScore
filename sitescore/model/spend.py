@@ -12,6 +12,7 @@ import numpy as np
 
 from sitescore.config import SEGMENTS, BusinessProfile, Costs
 from sitescore.model.demand import Catchment
+from sitescore.model.types import RentEstimate
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,13 @@ def compute_spend(catchment: Catchment, captured: np.ndarray, profile: BusinessP
         visits_by_segment={s: v * capacity_factor for s, v in uncapped.items()},
         uncapped_visits_by_segment=uncapped,
     )
+
+
+def site_costs(costs: Costs | None, rent: RentEstimate | None) -> Costs | None:
+    """The profile's running costs with this site's rent in place of the typical one."""
+    if costs is None or rent is None:
+        return costs
+    return costs.model_copy(update={"rent_per_month": rent.monthly})
 
 
 def monthly_profit(revenue: float, costs: Costs | None) -> float | None:

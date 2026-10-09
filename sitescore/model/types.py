@@ -38,6 +38,17 @@ class DataUsed(BaseModel):
     latest_published: dt.date | None
 
 
+class RentEstimate(BaseModel):
+    """Site-specific rent: the profile's rent for a typical site, scaled by an index."""
+
+    monthly: float
+    base: float                # the profile's rent_per_month (a typical site)
+    index: float               # monthly / base
+    footfall_index: float      # people passing (in walking reach, time-weighted) vs typical sites
+    area_index: float          # nearby residential rents vs the region (1 when unknown)
+    summary: str
+
+
 class SiteResult(BaseModel):
     site: Site
     business_type: str
@@ -51,6 +62,8 @@ class SiteResult(BaseModel):
     # Share of mature trade in each month since opening, from the agent simulation
     # (None when agents are off: the profile's ramp curve is used instead).
     ramp: list[float] | None = None
+    # Rent at this site (None without running costs or with the rent model off).
+    rent: RentEstimate | None = None
     layers: list[LayerResult]
     data_used: list[DataUsed]
 
