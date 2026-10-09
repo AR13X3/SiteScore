@@ -51,7 +51,7 @@ def data_ready_date(store: DataStore) -> dt.date:
     """Earliest date on which every model input has at least one release."""
     earliest = []
     for name, spec in TABLES.items():
-        if spec.model_visible and store.has(name):
+        if spec.model_visible and spec.model_input and store.has(name):
             earliest.append(store.read(name)["published_at"].min().date())
     return max(earliest)
 

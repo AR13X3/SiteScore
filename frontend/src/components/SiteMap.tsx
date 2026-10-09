@@ -2,8 +2,8 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useState } from "react";
 import { Circle, CircleMarker, MapContainer, Marker, TileLayer, Tooltip, useMap, useMapEvents } from "react-leaflet";
-import { siteColor, token } from "../lib/theme";
-import type { CandidateSite, Region, SiteSimulation } from "../lib/types";
+import { ORDINAL_BINS, ordinalColor, siteColor, token } from "../lib/theme";
+import type { CandidateSite, GridPoint, Region, SiteSimulation, Spot, Vacancy } from "../lib/types";
 
 interface Props {
   region: Region;
@@ -20,6 +20,14 @@ interface Props {
   onAdd: (lat: number, lon: number) => void;
   onMove: (id: string, lat: number, lon: number) => void;
   onSelect: (id: string) => void;
+  /** Spot finder: the search circle. While set, map clicks move it instead of adding sites. */
+  finder?: { lat: number; lon: number; radius: number } | null;
+  onFinderMove?: (lat: number, lon: number) => void;
+  spots?: Spot[];
+  grid?: GridPoint[];
+  vacancies?: Vacancy[];
+  activeSpotId?: string | null;
+  onSpotSelect?: (id: string) => void;
 }
 
 // Standard OSM tiles (no key). They're desaturated in CSS so the coloured pins
@@ -41,6 +49,25 @@ function ClickToAdd({ enabled, onAdd }: { enabled: boolean; onAdd: Props["onAdd"
     },
   });
   return null;
+}
+
+const centreIcon = L.divIcon({ className: "finder-centre", html: "<span></span>", iconSize: [18, 18], iconAnchor: [9, 9] });
+const vacancyIcon = L.divIcon({ className: "vacancy-mark", html: "<span></span>", iconSize: [12, 12], iconAnchor: [6, 6] });
+
+function spotIcon(letter: string, active: boolean): L.DivIcon {
+  return L.divIcon({
+    className: `spot-pin ${active ? "is-active" : ""}`,
+    html: `<span>${letter}</span>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+  });
+}
+
+/** Quintile bins of the quick score, so the ramp shows rank within this circle. */
+function gridBins(grid: GridPoint[]): (v: number) => number {
+  const v = grid.map((g) => g.quick_monthly).sort((a, b) => a - b);
+  const cuts = [...Array(ORDINAL_BINS - 1).keys()].map((i) => v[Math.floor(((i + 1) * v.length) / ORDINAL_BINS)] ?? 0);
+  return (x: number) => cuts.filter((c) => x >= c).length;
 }
 
 /**
@@ -155,6 +182,8 @@ export function overlayData(sim: SiteSimulation) {
 
 export function SiteMap(props: Props) {
   const { region, sites, dark, canAdd, selectedId, overlay, focus, fitKey, onAdd, onMove, onSelect } = props;
+  const { finder, onFinderMove, spots = [], grid = [], vacancies = [], activeSpotId, onSpotSelect } = props;
+  const bin = useMemo(() => gridBins(grid), [grid]);
   const [lon0, lat0, lon1, lat1] = region.bbox;
   const bounds = useMemo(
     () => L.latLngBounds([lat0 - 0.03, lon0 - 0.05], [lat1 + 0.03, lon1 + 0.05]),
@@ -173,11 +202,71 @@ export function SiteMap(props: Props) {
       zoom={region.map.zoom}
       minZoom={12}
       maxBounds={bounds}
-      className={`map ${canAdd ? "map--adding" : ""}`}
+      className={`map ${canAdd || finder ? "map--adding" : ""}`}
       attributionControl
     >
       <TileLayer url={TILES} attribution={ATTRIBUTION} maxZoom={19} />
-      <ClickToAdd enabled={canAdd} onAdd={onAdd} />
+      <ClickToAdd
+        enabled={finder ? true : canAdd}
+        onAdd={finder && onFinderMove ? onFinderMove : onAdd}
+      />
+      {finder && (
+        <>
+          <Circle
+            center={[finder.lat, finder.lon]}
+            radius={finder.radius}
+            interactive={false}
+            pathOptions={{ color: token("--text-primary"), weight: 1.5, opacity: 0.6, fillOpacity: 0.03 }}
+          />
+          {grid.map((g, i) => (
+            <CircleMarker
+              key={`g${i}`}
+              center={[g.lat, g.lon]}
+              radius={3.5}
+              interactive={false}
+              pathOptions={{ weight: 0, fillColor: ordinalColor(bin(g.quick_monthly), dark), fillOpacity: 0.85 }}
+            />
+          ))}
+          {vacancies.map((v) => (
+            <Marker key={v.id} position={[v.lat, v.lon]} icon={vacancyIcon} keyboard={false}>
+              <Tooltip direction="top" offset={[0, -6]}>
+                <strong>{v.kind}</strong>
+                <br />
+                {v.label}
+              </Tooltip>
+            </Marker>
+          ))}
+          <Marker
+            position={[finder.lat, finder.lon]}
+            icon={centreIcon}
+            draggable
+            keyboard={false}
+            eventHandlers={{
+              dragend: (e) => {
+                const p = (e.target as L.Marker).getLatLng();
+                onFinderMove?.(p.lat, p.lng);
+              },
+            }}
+          >
+            <Tooltip direction="top" offset={[0, -10]}>Drag to move the search area</Tooltip>
+          </Marker>
+          {spots.map((sp) => (
+            <Marker
+              key={sp.id}
+              position={[sp.lat, sp.lon]}
+              icon={spotIcon(String.fromCharCode(64 + sp.rank), sp.id === activeSpotId)}
+              zIndexOffset={sp.id === activeSpotId ? 900 : 500}
+              eventHandlers={{ click: () => onSpotSelect?.(sp.id) }}
+            >
+              <Tooltip direction="top" offset={[0, -12]}>
+                <strong>{String.fromCharCode(64 + sp.rank)}. {sp.label}</strong>
+                <br />
+                {sp.kind}
+              </Tooltip>
+            </Marker>
+          ))}
+        </>
+      )}
       <FlyTo focus={focus} />
       <FitSites sites={sites} fitKey={fitKey} />
       <AutoResize />

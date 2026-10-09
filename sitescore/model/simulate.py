@@ -26,7 +26,10 @@ def default_open_date(as_of: dt.date) -> dt.date:
 
 def simulate(market: Market, sites: list[Site], profile: BusinessProfile, cfg: ModelConfig,
              region: Region, calendar: Calendar, open_date: dt.date | None = None,
-             uncertainty: bool = False, n_runs: int | None = None) -> SimulationResult:
+             uncertainty: bool = False, n_runs: int | None = None,
+             uncertainty_top: int | None = None) -> SimulationResult:
+    """uncertainty_top: Monte Carlo bands only for the n best sites by total revenue
+    (the spot finder ranks many sites but only needs ranges for the winners)."""
     open_date = open_date or default_open_date(market.as_of)
     if open_date < market.as_of:
         raise ValueError("open_date must not be before the as-of date")
@@ -43,9 +46,12 @@ def simulate(market: Market, sites: list[Site], profile: BusinessProfile, cfg: M
             dynamics=dynamics,
         ))
         analyses.append(analysis)
-        if uncertainty:
-            components.append(monthly_components(analysis.result, market, profile, cfg,
-                                                 region.metric_crs, calendar, open_date))
+    banded = list(range(len(sims)))
+    if uncertainty and uncertainty_top:
+        banded = sorted(banded, key=lambda i: sims[i].total_revenue, reverse=True)[:uncertainty_top]
+    if uncertainty:
+        components = [monthly_components(analyses[i].result, market, profile, cfg,
+                                         region.metric_crs, calendar, open_date) for i in banded]
     explanations, baseline = explain(sims)
     return SimulationResult(
         business_type=profile.id,
@@ -57,6 +63,7 @@ def simulate(market: Market, sites: list[Site], profile: BusinessProfile, cfg: M
         ranking=[e.site_id for e in explanations],
         explanations=explanations,
         data_used=[DataUsed(**a.__dict__) for a in market.data_used],
-        uncertainty=run_uncertainty(analyses, components, market, profile, cfg, region, calendar,
-                                    open_date, n_runs) if uncertainty else None,
+        uncertainty=run_uncertainty([analyses[i] for i in banded], components, market, profile,
+                                    cfg, region, calendar, open_date, n_runs)
+        if uncertainty else None,
     )

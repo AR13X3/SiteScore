@@ -3,6 +3,7 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import { LadderChart, ladderVerdict } from "../components/LadderChart";
 import { type MapPoint, PointsMap } from "../components/PointsMap";
 import { api } from "../lib/api";
+import { useElapsed } from "../lib/hooks";
 import { money, pct } from "../lib/format";
 import { ORDINAL_BINS, STATUS, ordinalColor, token } from "../lib/theme";
 import type {
@@ -27,17 +28,6 @@ interface Props {
 const dateShort = (iso: string | null) =>
   iso ? new Date(`${iso}T00:00:00`).toLocaleDateString("en-AU", { month: "short", year: "numeric" }) : "–";
 const num2 = (v: number | null) => (v === null ? "n/a" : v.toFixed(2));
-
-function useElapsed(running: boolean): number {
-  const [s, setS] = useState(0);
-  useEffect(() => {
-    if (!running) return;
-    setS(0);
-    const t = setInterval(() => setS((v) => v + 1), 1000);
-    return () => clearInterval(t);
-  }, [running]);
-  return s;
-}
 
 export function BacktestView({ region, businessType, dark }: Props) {
   const [mode, setMode] = useState<Mode>("backtest");

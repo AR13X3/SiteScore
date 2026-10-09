@@ -8,6 +8,8 @@ import type {
   CrossSectionResult,
   GeocodeHit,
   Region,
+  SearchRequest,
+  SearchResult,
   SimulationResult,
   Site,
   TableStatus,
@@ -50,6 +52,8 @@ export const api = {
     request<GeocodeHit[]>(`/api/geocode?q=${encodeURIComponent(q)}`, { signal }),
   simulate: (body: SimulateRequest) =>
     request<SimulationResult>("/api/simulate", { method: "POST", body: JSON.stringify(body) }),
+  search: (body: SearchRequest) =>
+    request<SearchResult>("/api/search", { method: "POST", body: JSON.stringify(body) }),
   cohorts: () => request<Cohort[]>("/api/backtest/cohorts"),
   backtest: (cohort: string, businessType: string) =>
     request<BacktestResult>("/api/backtest", {

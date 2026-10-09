@@ -46,6 +46,15 @@
       "source": "NSW Planning Portal - Online DA data",
       "licence": "CC BY 4.0"
     },
+    "vacancies": {
+      "rows": 55,
+      "published_range": [
+        "2026-10-10",
+        "2026-10-10"
+      ],
+      "source": "OpenStreetMap vacant shopfronts (via Overpass)",
+      "licence": "ODbL 1.0"
+    },
     "poi_history": {
       "rows": 701,
       "published_range": [

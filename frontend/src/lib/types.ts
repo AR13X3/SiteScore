@@ -339,3 +339,70 @@ export interface BusinessProfile {
   name: string;
   costs: Costs | null;
 }
+
+// --- Spot finder (sitescore/api/routes_search.py) ------------------------------------
+
+export type SearchWhere = "anywhere" | "vacant";
+export type RankBy = "revenue" | "profit";
+
+export interface SearchRequest {
+  business_type: string;
+  lat: number;
+  lon: number;
+  radius_m: number;
+  where: SearchWhere;
+  retail_only: boolean;
+  rank_by: RankBy;
+  as_of?: string;
+  costs?: Costs;
+}
+
+export interface Spot {
+  id: string;
+  label: string;
+  kind: string;
+  former_use: string;
+  lat: number;
+  lon: number;
+  rank: number;
+  total_revenue: number;
+  total_profit: number | null;
+  mature_monthly: number;
+  revenue_range: [number, number] | null;
+  profit_range: [number, number] | null;
+  prob_loss: number | null;
+  prob_best: number | null;
+  headline: string;
+  quick_monthly: number;
+}
+
+export interface GridPoint {
+  lat: number;
+  lon: number;
+  quick_monthly: number;
+}
+
+export interface Vacancy {
+  id: string;
+  lat: number;
+  lon: number;
+  label: string;
+  kind: string;
+  former_use: string;
+}
+
+export interface SearchResult {
+  where: SearchWhere;
+  rank_by: RankBy;
+  as_of: string;
+  open_date: string | null;
+  lat: number;
+  lon: number;
+  radius_m: number;
+  n_candidates: number;
+  n_shortlisted: number;
+  spots: Spot[];
+  grid: GridPoint[];
+  vacancies: Vacancy[];
+  notes: string[];
+}

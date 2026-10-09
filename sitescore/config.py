@@ -278,6 +278,18 @@ class DevelopmentsCfg(Strict):
     occupancy_ramp_months: int = Field(ge=0)
 
 
+class SearchCfg(Strict):
+    """Finding the best spots inside an area the user draws."""
+
+    max_radius_m: float = Field(gt=0)
+    grid_points: int = Field(ge=10)           # target number of grid points in the circle
+    min_spacing_m: float = Field(gt=0)
+    retail_within_m: float = Field(gt=0)      # "only where similar businesses trade"
+    shortlist: int = Field(ge=1)              # screened spots re-run with the full model
+    min_separation_m: float = Field(ge=0)     # suggestions this far apart at least
+    results: int = Field(ge=1)
+
+
 class ModelConfig(Strict):
     horizon_months: int = Field(ge=1, le=120)
     distance: DistanceCfg
@@ -288,6 +300,7 @@ class ModelConfig(Strict):
     game: GameCfg
     montecarlo: MonteCarloCfg
     developments: DevelopmentsCfg
+    search: SearchCfg
 
 
 # --- Region, calendar, sources --------------------------------------------------------

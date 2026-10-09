@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AddressSearch, shortAddress } from "../components/AddressSearch";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { type FinderSettings, FinderPanel, round5, spotLetter } from "../components/FinderPanel";
 import { ProfitPanel } from "../components/ProfitPanel";
 import { type Metric, RevenueChart } from "../components/RevenueChart";
 import { SiteList } from "../components/SiteList";
@@ -8,8 +9,9 @@ import { SiteMap } from "../components/SiteMap";
 import { WhyPanel } from "../components/WhyPanel";
 import { api } from "../lib/api";
 import { money, parameterLabel, pct } from "../lib/format";
-import { MAX_SITES, siteColor } from "../lib/theme";
-import type { CandidateSite, Costs, GeocodeHit, Region, SimulationResult } from "../lib/types";
+import { useElapsed } from "../lib/hooks";
+import { MAX_SITES, ordinalColor, siteColor } from "../lib/theme";
+import type { CandidateSite, Costs, GeocodeHit, Region, SearchResult, SimulationResult, Spot } from "../lib/types";
 
 const DEMO_SITES: Omit<CandidateSite, "id" | "slot">[] = [
   { label: "Church St, Parramatta", lat: -33.815, lon: 151.0035 },
@@ -48,6 +50,23 @@ export function CompareView({ region, businessType, asOf, dark }: Props) {
   const requestSeq = useRef(0);
   const sitesRef = useRef(sites);
   sitesRef.current = sites;
+  // Spot finder: a circle the user places, and its results.
+  const [panel, setPanel] = useState<"compare" | "find">("compare");
+  const [finder, setFinder] = useState<FinderSettings>({
+    lat: region.map.center[0], lon: region.map.center[1], radius: 1000,
+    where: "anywhere", retailOnly: true, rankBy: "revenue",
+  });
+  const [search, setSearch] = useState<SearchResult | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [activeSpot, setActiveSpot] = useState<string | null>(null);
+  const [addedSpots, setAddedSpots] = useState<Set<string>>(new Set());
+  const searchElapsed = useElapsed(searching);
+
+  useEffect(() => {
+    setSearch(null); // results belong to one business type and one as-of date
+    setAddedSpots(new Set());
+  }, [businessType, asOf]);
 
   // The business type's running costs are the starting point for the profit view.
   useEffect(() => {
@@ -139,7 +158,52 @@ export function CompareView({ region, businessType, asOf, dark }: Props) {
   const clear = useCallback(() => {
     setSites([]);
     setSelectedId(null);
+    setAddedSpots(new Set());
   }, []);
+
+  const openFinder = useCallback(() => {
+    // Start the search area on the selected site, if there is one.
+    const sel = sitesRef.current.find((s) => s.id === selectedId);
+    if (sel && !search) setFinder((f) => ({ ...f, lat: sel.lat, lon: sel.lon }));
+    setPanel("find");
+  }, [selectedId, search]);
+  const runSearch = useCallback(async () => {
+    setSearching(true);
+    setSearchError(null);
+    try {
+      const r = await api.search({
+        business_type: businessType, lat: round5(finder.lat), lon: round5(finder.lon),
+        radius_m: finder.radius, where: finder.where, retail_only: finder.retailOnly,
+        rank_by: finder.rankBy, ...(asOf ? { as_of: asOf } : {}), ...(costs ? { costs } : {}),
+      });
+      setSearch(r);
+      setActiveSpot(r.spots[0]?.id ?? null);
+    } catch (e) {
+      setSearchError((e as Error).message);
+    } finally {
+      setSearching(false);
+    }
+  }, [businessType, finder, asOf, costs]);
+  const addSpot = useCallback((spot: Spot) => {
+    if (sitesRef.current.length >= MAX_SITES) return;
+    addSite(spot.lat, spot.lon, `${spotLetter(spot.rank)}: ${spot.label}`);
+    setAddedSpots((prev) => new Set(prev).add(spot.id));
+  }, [addSite]);
+  const addTop = useCallback((n: number) => {
+    const prev = sitesRef.current;
+    const free = Math.max(0, MAX_SITES - prev.length);
+    const todo = (search?.spots ?? []).filter((s) => !addedSpots.has(s.id)).slice(0, Math.min(n, free));
+    // One by one, so each new site takes the next free colour slot.
+    const next = [...prev];
+    for (const sp of todo) {
+      next.push({ id: newId(), slot: freeSlot(next), label: `${spotLetter(sp.rank)}: ${sp.label}`, lat: sp.lat, lon: sp.lon });
+    }
+    setSites(next);
+    if (next.length > prev.length) setSelectedId(next[prev.length].id);
+    setAddedSpots((p) => new Set([...p, ...todo.map((t) => t.id)]));
+    setPanel("compare");
+    setFitKey(Date.now());
+  }, [search, addedSpots]);
 
   // While a refetch runs, keep showing the previous result (dimmed), minus removed sites.
   const current = useMemo<SimulationResult | null>(() => {
@@ -176,15 +240,39 @@ export function CompareView({ region, businessType, asOf, dark }: Props) {
             dark={dark}
             canAdd={sites.length < MAX_SITES}
             selectedId={selectedId}
-            overlay={selectedSim}
+            overlay={panel === "compare" ? selectedSim : undefined}
             focus={focus}
             fitKey={fitKey}
             onAdd={addSite}
             onMove={moveSite}
             onSelect={showSite}
+            finder={panel === "find" ? { lat: finder.lat, lon: finder.lon, radius: finder.radius } : null}
+            onFinderMove={(lat, lon) => setFinder((f) => ({ ...f, lat, lon }))}
+            spots={panel === "find" ? search?.spots : undefined}
+            grid={panel === "find" ? search?.grid : undefined}
+            vacancies={panel === "find" ? search?.vacancies : undefined}
+            activeSpotId={activeSpot}
+            onSpotSelect={setActiveSpot}
           />
           </ErrorBoundary>
-          {selectedSim && selected && (
+          {panel === "find" && (
+            <div className="map-legend" aria-label="Map key for the spot finder">
+              <div className="map-legend__title">Finding the best spots</div>
+              <div><span className="key-ring key-ring--ink" /><span className="long">Search area (click the map or drag its centre)</span><span className="short">Search area</span></div>
+              <div><span className="key-letter">A</span><span className="long">Best spots, ranked</span><span className="short">Best spots</span></div>
+              <div><span className="key-square" /><span className="long">Vacant shopfront (OpenStreetMap)</span><span className="short">Vacant</span></div>
+              {search?.grid.length ? (
+                <div>
+                  <span className="key-ramp">
+                    {[0, 2, 4].map((b) => <span key={b} style={{ background: ordinalColor(b, dark) }} />)}
+                  </span>
+                  <span className="long">Quick score of every spot checked, darker is higher</span>
+                  <span className="short">Quick score</span>
+                </div>
+              ) : null}
+            </div>
+          )}
+          {panel === "compare" && selectedSim && selected && (
             <div className="map-legend" aria-label="Map key for the selected site">
               <div className="map-legend__title">
                 <span className="site-key site-key--small" style={{ background: siteColor(selected.slot, dark) }}>
@@ -212,6 +300,33 @@ export function CompareView({ region, businessType, asOf, dark }: Props) {
         </section>
 
         <aside className="card side">
+          <div className="segmented segmented--wide" role="tablist" aria-label="Side panel">
+            <button role="tab" aria-selected={panel === "compare"} className={panel === "compare" ? "is-on" : ""} onClick={() => setPanel("compare")}>
+              Compare sites{sites.length ? ` (${sites.length})` : ""}
+            </button>
+            <button role="tab" aria-selected={panel === "find"} className={panel === "find" ? "is-on" : ""} onClick={openFinder}>
+              Find spots
+            </button>
+          </div>
+          {panel === "find" && (
+            <FinderPanel
+              settings={finder}
+              onChange={(patch) => setFinder((f) => ({ ...f, ...patch }))}
+              result={search}
+              searching={searching}
+              elapsed={searchElapsed}
+              error={searchError}
+              hasCosts={!!costs}
+              canAdd={sites.length < MAX_SITES}
+              addedIds={addedSpots}
+              activeId={activeSpot}
+              onSearch={runSearch}
+              onSelect={setActiveSpot}
+              onAdd={addSpot}
+              onAddTop={addTop}
+            />
+          )}
+          {panel === "compare" && (<>
           <div>
             <h2>Candidate sites</h2>
             <AddressSearch disabled={sites.length >= MAX_SITES} onPick={addAddress} />
@@ -252,6 +367,7 @@ export function CompareView({ region, businessType, asOf, dark }: Props) {
               dark={dark}
             />
           )}
+          </>)}
         </aside>
 
         {current && (

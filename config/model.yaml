@@ -115,3 +115,20 @@ developments:
     - {max_dwellings: 100, months: 30}
     - {max_dwellings: 100000, months: 42}
   occupancy_ramp_months: 6           # new buildings fill up gradually
+
+# --- Finding the best spots in an area ------------------------------------------
+# The user draws a circle; candidates are vacant shopfronts in it, or a grid over
+# it. Every candidate gets a quick score (demand x fit x anchors x Huff share:
+# ~2 ms each), the best `shortlist` (kept at least min_separation_m apart, so
+# suggestions don't pile onto one corner) are re-run with the full model over
+# 36 months, and the top `results` get Monte Carlo ranges.
+search:
+  max_radius_m: 3000
+  grid_points: 900            # grid spacing adapts to the circle's size...
+  min_spacing_m: 60           # ...but never denser than this
+  retail_within_m: 150        # "only where similar businesses trade": near a mapped competitor
+  # In three test areas the full model's top 5 were always the quick score's top 5
+  # (Spearman 0.88-0.99), so 12 leaves a wide margin at a quarter of the cost of 50.
+  shortlist: 12
+  min_separation_m: 150
+  results: 5

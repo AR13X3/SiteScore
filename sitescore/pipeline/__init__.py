@@ -12,6 +12,7 @@ from sitescore.pipeline.base import Adapter, PipelineContext, RunResult, build_c
 from sitescore.pipeline.google_places import GooglePlaces
 from sitescore.pipeline.osm import Osm
 from sitescore.pipeline.osm_history import OsmHistory
+from sitescore.pipeline.osm_vacancies import OsmVacancies
 from sitescore.pipeline.outcome_sources import (
     AsicBusinessNames,
     FoursquarePlaces,
@@ -23,7 +24,7 @@ from sitescore.pipeline.tfnsw import TfnswStations
 # Order matters: OSM history, Google Places and ASIC look up businesses found by the
 # map sources.
 ADAPTERS: tuple[Adapter, ...] = (
-    AbsCensus(), AbsWorkers(), TfnswStations(), Osm(), OsmHistory(), PlanningDA(),
+    AbsCensus(), AbsWorkers(), TfnswStations(), Osm(), OsmHistory(), OsmVacancies(), PlanningDA(),
     OverturePlaces(), FoursquarePlaces(), GooglePlaces(), AsicBusinessNames(),
 )
 

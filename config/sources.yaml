@@ -93,6 +93,17 @@ osm:
   # server whose data reaches its date; "today" from one at most this many days behind.
   max_live_lag_days: 2
 
+osm_vacancies:
+  title: OpenStreetMap vacant shopfronts (via Overpass)
+  provider: OpenStreetMap contributors
+  licence: ODbL 1.0
+  # shop=vacant, disused:shop=*, vacant:shop=*, and disused:amenity=* for uses that
+  # leave a shopfront (cafes, restaurants, banks...). Today's map only, so a run as of
+  # an earlier date sees no vacancies. Uses the osm endpoints and freshness check.
+  published_at: {rule: fetched}
+  used_for: candidate sites for the spot finder (never a model input)
+  needs_key: false
+
 osm_history:
   title: OpenStreetMap element history (OSM API v0.6)
   provider: OpenStreetMap contributors

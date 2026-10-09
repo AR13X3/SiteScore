@@ -37,6 +37,7 @@ More controls:
 
 - **Running costs:** the rent, wages, cost-of-goods and other-cost inputs drive profit, break-even and each site's chance of a 36-month loss. The defaults come from the business profile, and changes are sent to the model as overrides.
 - **Data as of:** run the model as it would have looked on a past date. Only data published by then is used, from 12 Oct 2022 (when the last Census release came out) to today.
+- **Find spots:** draw a circle on the map and get the best places inside it, either vacant shopfronts or anywhere on a shopping strip, ranked by revenue or profit (see [Finding the best spots](#finding-the-best-spots)).
 - **Backtest screen:** the time-safe backtest, with:
   - a cohort map and the opening check
   - closures by predicted third
@@ -84,6 +85,7 @@ All sources are official or open data. Details and licences are in [config/sourc
 | Transport for NSW station entries/exits | Commuter foot traffic | Station × month, Jul 2016 onwards | 41 train, metro and light-rail stations |
 | OpenStreetMap (Overpass) | Competitors, anchor tenants, stations | Point; **quarterly historical snapshots** | ~900 points per snapshot |
 | OpenStreetMap element history (OSM API) | Backtest outcomes only: when each café was mapped, when it closed and what replaced it | Every edit of every café element | 245 elements, 701 versions |
+| OpenStreetMap vacant shopfronts (Overpass) | Candidate sites for the spot finder (never a model input) | Point, today's map | 55 empty shopfronts |
 | NSW Planning Portal online DA data | Future residents from development applications | Application → lodged and determined events | 2,767 DAs with new dwellings |
 | NSW Spatial Services address points (Nominatim fallback) | Address search in the UI (`GET /api/geocode?q=`) | Address | live |
 | Google Places (optional) | Backtest outcomes only: reviews, rating, status | Place | needs a key |
@@ -190,6 +192,26 @@ To try it, start the app and open `http://127.0.0.1:8000/docs`, then call `POST 
 6. **Time dynamics:** ramp-up, seasonality, school holidays, and developments completing on their expected dates.
 7. **Spend:** visits × average transaction value gives revenue. Rent and wages give profit.
 8. **Uncertainty:** Monte Carlo over key assumptions gives P10/P50/P90 bands.
+
+## Finding the best spots
+
+The **Find spots** tab on the Compare screen searches an area for you. Click the map to centre a circle (250 m to 3 km), choose where to look, and SiteScore ranks the best places inside it. It's also available as `POST /api/search`.
+
+- **Look at:**
+  - **Vacant shopfronts:** empty shops mapped on OpenStreetMap, tagged `shop=vacant` or with a former use such as `disused:amenity=cafe`. Mappers often tag these after seeing a "for lease" sign. Former cafés are flagged, since a fit-out is likely.
+  - **Anywhere:** a grid over the circle, by default only along shopping strips, meaning within 150 m of where similar businesses already trade. Schools and hospitals don't count.
+- **How it ranks:**
+  1. Every candidate gets a quick score: the model with the agents and the price game off, about 2 ms each.
+  2. The best 12, kept at least 150 m apart so suggestions don't pile onto one corner, re-run through the full model over 36 months.
+  3. The top 5 get Monte Carlo ranges and a chance of a loss.
+  4. Any result can be added to the comparison, or "Compare the top 3" adds three at once.
+- **Speed:** about 3–9 s per search; the dense CBD is the slowest. In three test areas, the full model's top 5 were always the quick score's top 5 (Spearman 0.88–0.99), so the shortlist of 12 leaves a wide margin.
+- **Revenue or profit:** while running costs are the same everywhere, ranking by profit gives the same order as ranking by revenue (profit = revenue × (1 − cost of goods) − fixed costs). A site-specific rent proxy would change that.
+- **Limits:**
+  - Vacant shopfronts are leads to check, not listings: coverage depends on local mappers, and there's no rent, size or agent.
+  - A vacancy is only known from the day it was fetched, so a run "as of" an earlier date sees none.
+  - Real listings would need an API account such as Domain's commercial listings search.
+  - Settings are in `config/model.yaml` under `search`.
 
 ## Backtest (our proof)
 

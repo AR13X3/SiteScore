@@ -451,3 +451,59 @@ button.site-key { border: none; cursor: pointer; padding: 0; }
   .bt-controls select { flex: 1; min-width: 0; }
   .bt-head h1 { font-size: 18px; }
 }
+
+/* ---- Spot finder ------------------------------------------------------------- */
+.segmented--wide { display: flex; width: 100%; }
+.segmented--wide button { flex: 1; padding: 6px 10px; }
+.finder { display: flex; flex-direction: column; gap: 10px; }
+.finder p { margin: 0; }
+.finder__row { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 13px; }
+.finder__row > span:first-child { color: var(--text-secondary); }
+.finder__row .segmented { justify-self: start; }
+.finder__row input[type="range"] { width: 100%; accent-color: var(--accent); }
+.finder__check { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: var(--text-secondary); }
+.finder__go { align-self: stretch; }
+.finder__go:disabled { opacity: 0.7; cursor: progress; }
+.finder__error { color: var(--neg); font-size: 13px; }
+.finder__results { display: flex; flex-direction: column; gap: 8px; }
+.finder__notes { margin: 4px 0 0; padding-left: 16px; display: flex; flex-direction: column; gap: 4px; }
+.segmented button:disabled { opacity: 0.45; cursor: not-allowed; }
+.spot-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.spot {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: start;
+  padding: 8px; border: 1px solid var(--border); border-radius: 8px;
+}
+.spot.is-active { border-color: var(--text-secondary); background: var(--hover); }
+.spot__letter {
+  width: 24px; height: 24px; border-radius: 50%; border: none; cursor: pointer; font-weight: 700; font-size: 12px;
+  background: var(--text-primary); color: var(--surface);
+}
+.spot__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 13px; }
+.spot__title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; }
+.spot__title strong { overflow-wrap: anywhere; }
+.spot__title .tag { margin-left: 0; }
+.tag--strong { border-color: var(--text-secondary); color: var(--text-primary); }
+.spot__numbers strong { font-size: 14px; }
+.spot-pin span {
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--text-primary); color: var(--surface); font-weight: 700; font-size: 12px;
+  border: 2px solid var(--surface); box-shadow: 0 2px 6px rgb(0 0 0 / 0.3); cursor: pointer;
+}
+.spot-pin.is-active span { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--text-primary), 0 2px 8px rgb(0 0 0 / 0.35); }
+.vacancy-mark span {
+  display: block; width: 10px; height: 10px; margin: 1px; border-radius: 2px;
+  background: var(--surface); border: 2px solid var(--text-secondary);
+}
+.finder-centre span {
+  display: block; width: 18px; height: 18px; border-radius: 50%; cursor: move;
+  border: 2px solid var(--text-primary); background: color-mix(in srgb, var(--surface) 70%, transparent);
+  box-shadow: inset 0 0 0 5px var(--surface), inset 0 0 0 9px var(--text-primary);
+}
+.key-ring--ink { border-color: var(--text-primary); opacity: 0.7; }
+.key-letter {
+  display: inline-grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; flex: none;
+  background: var(--text-primary); color: var(--surface); font-size: 9px; font-weight: 700;
+}
+.key-square { width: 10px; height: 10px; border-radius: 2px; border: 2px solid var(--text-secondary); flex: none; }
+.key-ramp { display: inline-flex; gap: 1px; flex: none; }
+.key-ramp span { width: 6px; height: 10px; border-radius: 1px; }

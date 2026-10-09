@@ -37,6 +37,10 @@ class TableSpec:
     # False = outcome data (e.g. Google ratings today). The model may never read it;
     # only the backtest scorer can, after the prediction is made.
     model_visible: bool = True
+    # False = dated and readable as of a date, but not needed to run the model (e.g.
+    # vacant shopfronts, which only list candidate sites). Doesn't hold back the date
+    # from which the model can run.
+    model_input: bool = True
 
     @property
     def required_columns(self) -> tuple[str, ...]:
@@ -71,6 +75,13 @@ TABLES: dict[str, TableSpec] = {
             "developments", "planning_da", "cumulative",
             ("da_id", "lon", "lat", "new_dwellings", "event", "event_date"),
             "Development application events: lodged / approved / refused",
+        ),
+        TableSpec(
+            "vacancies", "osm_vacancies", "latest",
+            ("osm_id", "name", "lon", "lat", "kind", "former_use", "tags"),
+            "Vacant shopfronts (OSM shop=vacant / disused:*): candidate sites for the spot "
+            "finder, never a model input",
+            model_input=False,
         ),
         TableSpec(
             "poi_history", "osm_history", "cumulative",
