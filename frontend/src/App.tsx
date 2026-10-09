@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { DataBadge } from "./components/DataBadge";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { api } from "./lib/api";
 import { useDarkMode } from "./lib/theme";
 import type { AsOfRange, BusinessType, Region, TableStatus } from "./lib/types";
@@ -127,12 +128,16 @@ export default function App() {
 
       {region && (
         <div hidden={screen !== "compare"}>
-          <CompareView region={region} businessType={businessType} asOf={asOf} dark={dark} />
+          <ErrorBoundary what="Compare screen">
+            <CompareView region={region} businessType={businessType} asOf={asOf} dark={dark} />
+          </ErrorBoundary>
         </div>
       )}
       {region && visitedBacktest && (
         <div hidden={screen !== "backtest"}>
-          <BacktestView region={region} businessType={businessType} dark={dark} />
+          <ErrorBoundary what="Backtest screen">
+            <BacktestView region={region} businessType={businessType} dark={dark} />
+          </ErrorBoundary>
         </div>
       )}
     </div>

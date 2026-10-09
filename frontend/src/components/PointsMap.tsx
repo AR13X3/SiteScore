@@ -4,7 +4,7 @@ import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from "react-leaflet";
 import { token } from "../lib/theme";
 import type { Region } from "../lib/types";
-import { ATTRIBUTION, TILES } from "./SiteMap";
+import { ATTRIBUTION, TILES, whenSized } from "./SiteMap";
 
 export interface MapPoint {
   id: string;
@@ -48,9 +48,10 @@ function FitTo({ points }: { points: MapPoint[] }) {
 function FlyToSelected({ point }: { point?: MapPoint }) {
   const map = useMap();
   useEffect(() => {
-    if (point && !map.getBounds().pad(-0.1).contains([point.lat, point.lon])) {
-      map.panTo([point.lat, point.lon]);
-    }
+    if (!point) return;
+    return whenSized(map, () => {
+      if (!map.getBounds().pad(-0.1).contains([point.lat, point.lon])) map.panTo([point.lat, point.lon]);
+    });
   }, [map, point]);
   return null;
 }

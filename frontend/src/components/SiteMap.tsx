@@ -43,6 +43,30 @@ function ClickToAdd({ enabled, onAdd }: { enabled: boolean; onAdd: Props["onAdd"
   return null;
 }
 
+/**
+ * Run a map move once the map has a real size. A map that was hidden (another
+ * screen) measures 0 x 0 until Leaflet re-measures, and moving it then throws.
+ */
+export function whenSized(map: L.Map, run: () => void): () => void {
+  const ready = () => {
+    map.invalidateSize();
+    const size = map.getSize();
+    return size.x > 0 && size.y > 0;
+  };
+  if (ready()) {
+    run();
+    return () => {};
+  }
+  const ro = new ResizeObserver(() => {
+    if (ready()) {
+      ro.disconnect();
+      run();
+    }
+  });
+  ro.observe(map.getContainer());
+  return () => ro.disconnect();
+}
+
 /** Leaflet measures its container once; re-measure when it resizes or is un-hidden. */
 export function AutoResize() {
   const map = useMap();
@@ -57,7 +81,8 @@ export function AutoResize() {
 function FlyTo({ focus }: { focus?: Props["focus"] }) {
   const map = useMap();
   useEffect(() => {
-    if (focus) map.flyTo([focus.lat, focus.lon], Math.max(map.getZoom(), 15), { duration: 0.8 });
+    if (!focus) return;
+    return whenSized(map, () => map.flyTo([focus.lat, focus.lon], Math.max(map.getZoom(), 15), { duration: 0.8 }));
   }, [focus?.key]);
   return null;
 }
@@ -65,9 +90,9 @@ function FlyTo({ focus }: { focus?: Props["focus"] }) {
 function FitSites({ sites, fitKey }: { sites: CandidateSite[]; fitKey?: number }) {
   const map = useMap();
   useEffect(() => {
-    if (fitKey && sites.length) {
-      map.flyToBounds(L.latLngBounds(sites.map((s) => [s.lat, s.lon])), { padding: [60, 60], maxZoom: 15, duration: 0.8 });
-    }
+    if (!fitKey || !sites.length) return;
+    const bounds = L.latLngBounds(sites.map((s) => [s.lat, s.lon]));
+    return whenSized(map, () => map.flyToBounds(bounds, { padding: [60, 60], maxZoom: 15, duration: 0.8 }));
   }, [fitKey]);
   return null;
 }

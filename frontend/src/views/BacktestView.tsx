@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { LadderChart, ladderVerdict } from "../components/LadderChart";
 import { type MapPoint, PointsMap } from "../components/PointsMap";
 import { api } from "../lib/api";
@@ -227,7 +228,9 @@ function TimeSafe({ result, region, dark }: { result: BacktestResult; region: Re
 
       <div className="bt-grid">
         <section className="card bt-map">
-          <PointsMap region={region} points={points} selectedId={selected} onSelect={select} label="Map of the backtest cohort" />
+          <ErrorBoundary what="map">
+            <PointsMap region={region} points={points} selectedId={selected} onSelect={select} label="Map of the backtest cohort" />
+          </ErrorBoundary>
           <div className="map-legend map-legend--static">
             {(["survived", "unknown", "closed", "censored"] as const).map((st) => (
               <div key={st}>
@@ -480,7 +483,9 @@ function Today({ result, region, dark }: { result: CrossSectionResult; region: R
       </div>
       <div className="bt-grid">
         <section className="card bt-map">
-          <PointsMap region={region} points={points} selectedId={selected} onSelect={setSelected} label="Map of cafés open today" />
+          <ErrorBoundary what="map">
+            <PointsMap region={region} points={points} selectedId={selected} onSelect={setSelected} label="Map of cafés open today" />
+          </ErrorBoundary>
           <div className="map-legend map-legend--static">
             <div className="map-legend__title">Predicted monthly revenue</div>
             {ranges.map(([lo, hi], i) => (

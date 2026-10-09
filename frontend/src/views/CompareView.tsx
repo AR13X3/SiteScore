@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AddressSearch, shortAddress } from "../components/AddressSearch";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { ProfitPanel } from "../components/ProfitPanel";
 import { type Metric, RevenueChart } from "../components/RevenueChart";
 import { SiteList } from "../components/SiteList";
@@ -168,6 +169,7 @@ export function CompareView({ region, businessType, asOf, dark }: Props) {
       {error && <div className="alert">{error}</div>}
       <main className="layout">
         <section className="card map-card">
+          <ErrorBoundary what="map">
           <SiteMap
             region={region}
             sites={sites}
@@ -181,6 +183,7 @@ export function CompareView({ region, businessType, asOf, dark }: Props) {
             onMove={moveSite}
             onSelect={showSite}
           />
+          </ErrorBoundary>
           {selectedSim && selected && (
             <div className="map-legend" aria-label="Map key for the selected site">
               <div className="map-legend__title">
