@@ -13,6 +13,19 @@ python run.py install    # one-time: virtualenv, dependencies, frontend build
 python run.py start      # opens http://127.0.0.1:8000
 ```
 
+To use the app:
+
+1. Click the map to drop up to 5 candidate sites, or press **Load 3 demo sites**.
+2. Drag pins to adjust, and rename sites in the side panel.
+
+Results update automatically:
+
+- a 36-month revenue chart
+- a ranking
+- a "why each site wins or loses" card per site, with a per-layer breakdown against the average candidate
+
+The badge in the top bar shows whether the results use real or mock data. Hover over it for each source.
+
 Other commands:
 
 | Command | What it does |
@@ -117,7 +130,7 @@ sitescore/
   model/         one module per model layer
   backtest/      backtest runner and metrics
   api/           FastAPI app
-frontend/        web app (map, charts, backtest screen)
+frontend/        web app: React + TypeScript, Leaflet map, ECharts
 backtests/       backtest cohorts (CSV)
 tests/
 ```
