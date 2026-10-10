@@ -52,8 +52,10 @@ Other commands:
 
 | Command | What it does |
 |---|---|
-| `python run.py data` | Fetch and process all data sources. Any source that fails falls back to mock data. |
+| `python run.py data` | Fetch and process all data sources. Any source that fails falls back to mock data. With a Google key this includes Google Places (guarded, see [Google Places](#google-places-fetched-once-kept-30-days)). |
+| `python run.py data --only google_places` | Fetch Google Places only. Within 30 days of a fetch it does nothing unless you add `--force` (which re-matches from the cache) |
 | `python run.py test` | Run the test suite |
+| `cd frontend && npm test` | Frontend logic tests (Node's built-in runner, no extra packages) |
 | `python run.py backtest` | Predict past openings with past data and score them against reality |
 | `python run.py backtest --cross-section` | Score every café open today with today's data (not time-safe) |
 | `python run.py dev` | Backend and frontend with hot reload |
@@ -67,11 +69,21 @@ All keys are optional. `install` creates `.env` from `.env.example`.
 
 | Key | Needed for | Without it |
 |---|---|---|
-| `GOOGLE_PLACES_API_KEY` | Backtest ground truth: rating, review count, open/closed | Backtest uses OSM-only outcome proxies |
+| `GOOGLE_PLACES_API_KEY` | Backtest ground truth: rating, review count, open/closed (fetched once, see below) | Backtest uses the free outcome sources only |
 | `HF_TOKEN` | Latest Foursquare Open Source Places (free Hugging Face account; accept the dataset terms) | Foursquare data comes from a public mirror whose newest release is Feb 2025 |
-| `TFNSW_API_KEY` | GTFS stop locations (bus stops) | Station patronage still works, since it needs no key |
+| `TFNSW_API_KEY` | Nothing yet (reserved for GTFS bus stops, not built) | Station patronage works either way: it needs no key |
 
 ABS, OpenStreetMap, NSW Planning Portal and Transport for NSW station patronage need no keys.
+
+### Google Places: fetched once, kept 30 days
+
+Google bills every Places request. Its terms allow keeping results for 30 days and forbid redistributing them. So:
+
+- **One request per business.** `python run.py data --only google_places` sends one Text Search for each café, gym and childcare centre mapped since 2022. On 10 Oct 2026 that was 311 requests for 316 businesses: names repeated within 60 m share one. Every field asked for bills as one "Text Search Enterprise" request, and Google gives 1,000 of those free each month.
+- **Request ledger.** `data/raw/google_places/ledger.json` counts every request ever sent. A run that would take the total past `max_requests` is refused before it sends anything. That limit is 400 in `config/sources.yaml` and can't be raised above 400 there. There are no retries: a failed request stops the run, and a re-run sends only the rest.
+- **No refetching.** If the processed table is under 30 days old, the adapter does nothing unless you pass `--force`. Answers are cached in `data/raw/google_places/` inside the repo (gitignored), so every machine shares them. Re-running the matching from that cache with `--force` costs nothing.
+- **Never committed or packed.** The demo pack leaves Places out. After 30 days the backtest ignores the table and says how to delete it (keep `ledger.json`). The current data is usable until 9 Nov 2026.
+- **Matching.** A Google result counts if it is the same business within 150 m, or has exactly the same name within 250 m. The name check is the cross-source matcher, and suburb names don't count as a match ("Cotti Coffee (Parramatta)" isn't "Crunch Fitness Parramatta"). 232 of 316 matched: 177 of 249 cafés, 38 of 45 gyms and 17 of 22 childcare centres. Google lists 209 as operational, 20 as permanently closed (13 of them still on the map) and 3 as temporarily closed.
 
 ## Data sources
 
@@ -88,7 +100,7 @@ All sources are official or open data. Details and licences are in [config/sourc
 | OpenStreetMap vacant shopfronts (Overpass) | Candidate sites for the spot finder (never a model input) | Point, today's map | 55 empty shopfronts |
 | NSW Planning Portal online DA data | Future residents from development applications | Application → lodged and determined events | 2,767 DAs with new dwellings |
 | NSW Spatial Services address points (Nominatim fallback) | Address search in the UI (`GET /api/geocode?q=`) | Address | live |
-| Google Places (optional) | Backtest outcomes only: reviews, rating, status | Place | needs a key |
+| Google Places (optional) | Backtest outcomes only: reviews, rating, status | Place | 232 of 316 businesses (fetched 10 Oct 2026) |
 | Overture Maps Places | Backtest outcomes only: still listed? with what confidence | Place, monthly | 21.6k places |
 | Foursquare Open Source Places | Backtest outcomes only: date added, refreshed, closed | Place | 24.5k places (Feb 2025 snapshot) |
 | ASIC Business Names | Backtest outcomes only: name registered or cancelled | Business name | 8.8k matching names |
@@ -267,7 +279,7 @@ python run.py backtest --cohort demo    # backtests/cohorts/demo.csv
      | Status | Means |
      |---|---|
      | closed | a closure was recorded on or before the 18-month mark (dated by the edit; the real closure was on or before it) |
-     | survived | it was still trading after the mark: a mapper edited or checked it then, or it is still on the map **and** an independent listing confirms it after the mark (Google operational, Foursquare refreshed, Overture with confidence ≥ 0.75) |
+     | survived | it was still trading after the mark: a mapper edited or checked it then, or it is still on the map **and** an independent listing confirms it after the mark (Google operational, Foursquare refreshed, Overture with confidence ≥ 0.75). Listings lag, so they only count while no source has recorded a closure. |
      | censored | the 18-month mark hasn't arrived yet |
      | unknown | anything weaker or contradictory |
 
@@ -286,39 +298,39 @@ python run.py backtest --cohort demo    # backtests/cohorts/demo.csv
      | Overture | Not listed | 0.4 (weak) |
      | Foursquare | Date marked closed, or still listed | 1.0 |
      | ASIC business names | A unique exact name registered around the opening is still registered, or cancelled | 0.75 |
-     | Google (with key) | Business status | 3.0 |
+     | Google (with key) | Operational or permanently closed | 3.0 |
 
      Older data counts for less: weights halve every 12 months since the data was collected.
    - change in weekly opening hours
-   - with a Google Places key: reviews per month since opening, and rating. This is the main performance measure. Survival is secondary.
+   - with a Google Places key: reviews per month since opening, and rating. This is the main performance measure. Survival is secondary. A café Google lists as permanently closed is judged on its closure: its reviews stopped when it closed.
 5. **Accuracy,** always compared with a naive "foot traffic only" baseline:
-   - share of pairs ranked correctly (50% = coin flip) and Spearman correlation, against the combined actual-performance score
+   - share of pairs ranked correctly (50% = coin flip) and Spearman correlation, against the combined actual-performance score. That score is a weighted mean of standardised reviews per month (1.0), rating (0.5), the "still trading" verdict (0.5: open +1, closed −1) and the change in opening hours (0.5). It uses the vote's verdict, not its margin, because the margin mostly says how many sources know a café.
    - top-third vs bottom-third actual percentile
    - for survival: AUC (survivors above closures), closure rate by predicted third, and whether spots without café closures are predicted above spots with them
 
-**Real Parramatta results (10 Oct 2026, free outcome sources, no Google):**
+**Real Parramatta results (10 Oct 2026, with Google Places):**
 
 Discovery found 56 cafés first mapped from Nov 2022 to Dec 2024. The opening check rejected 27 of them:
 - 26 were older cafés mapped late (e.g. Three Beans and Nadia's, both on Foursquare since 2010)
 - 1 had only been redrawn (Gatehouse Tea Rooms)
 
-That leaves 29 cafés: 18 confirmed new (8 of them took over another café's spot) and 11 unverified.
+That leaves 29 cafés: 18 confirmed new (8 of them took over another café's spot) and 11 unverified. Google matched 26 of them (not Quattro, Mehry's Cafe or Cafe W). Two of those 26 are permanently closed, so the review measures cover 24 cafés.
 
 | Measure | Model | Foot traffic only |
 |---|---|---|
-| Closed within 18 months | **none of 29** (20 survived, 9 unknown) | |
-| Survival AUC | n/a (no closures) | n/a |
+| Closed within 18 months | **none of 29** (25 survived, 4 unknown) | |
+| Still trading today | 27 of 29. Yellow Stage Eastwood and Chaffee House have closed; both closures were recorded after their 18-month mark | |
+| Google reviews per month since opening, Spearman (24 cafés) | 0.23 [−0.15, 0.57] | 0.08 [−0.27, 0.39] |
+| Google review count (log), Spearman (24 cafés) | 0.33 [−0.08, 0.64] | 0.18 [−0.16, 0.48] |
+| Combined actual-performance score: pairs ranked correctly, Spearman | 60%, 0.28 | 58%, 0.22 |
 | Café closures at the same spot since 2019, mean per café, top / middle / bottom predicted third | 0.10 / 0.40 / 0.44 | 0.30 / 0.20 / 0.44 |
 | Spots without closures predicted above spots with them (AUC) | 0.70 | 0.55 |
-| Pairs ranked correctly (combined proxy, no Google) | 51% | 59% |
 
 **What this does and doesn't show:**
-- **No survival signal can be measured yet.** None of the genuinely new cafés closed within 18 months, so there is nothing to rank against.
+- **The model points the right way on reviews, but 24 cafés can't show it's real.** The full model beats foot traffic by about 0.15 on both review measures. The gain's 90% interval runs from about −0.15 to +0.45, so every gain interval includes zero.
+- **Still no survival signal.** None of the genuinely new cafés closed within 18 months. Google's "operational" moved 6 cafés from unknown to survived. Chaffee House went the other way: Google says it has closed, and only a lagging Overture listing had said it traded past the mark.
+- **The site-churn hint is unchanged.** The model ranks spots where a café closed before lower than the baseline does (AUC 0.70 vs 0.55). But the 8 spots with any closure are exactly the 8 takeover openings, and those predecessors' closures were knowable before opening. It's 8 cafés against 21: a hint, not evidence.
 - **The two earlier "closures" weren't 18-month closures.** Koko 'n' Beans and Mulberry Tree were older cafés: Foursquare listed them from 2014 and 2016.
-- **A weak hint on site churn.** The model ranks spots where a café closed before lower than the baseline does (AUC 0.70 vs 0.55). But the 8 spots with any closure are exactly the 8 takeover openings, so this only says the model rates cafés that replaced a failed café lower. Those predecessors' closures were knowable before opening, and the model didn't use them. It's 8 cafés against 21: a hint, not evidence.
-- **The combined performance score is not informative yet.** Without Google it is mostly the "still trading" vote, which barely varies among open cafés.
-
-The missing ingredient is still a performance measure for open cafés. Adding `GOOGLE_PLACES_API_KEY` and running `python run.py data --only google_places` adds reviews per month and rating (about 300 requests, capped in `config/sources.yaml`, and likely inside Google's free monthly allowance).
 
 ### Which layers help? (layer by layer)
 
@@ -344,24 +356,46 @@ python run.py backtest --cross-section    # also GET /api/backtest/cross-section
 Every independent café on today's map (186 in Parramatta) is scored with today's data, against today's market with itself removed. The scores are then compared with today's outcomes:
 - Google reviews per month (needs the key)
 - Google review count
+- still trading per Google: cafés still on the map that Google lists as permanently closed, against open ones (these are left out of the review outcomes)
 - site churn
 
 The sample is about six times the genuine openings. But it is **not time-safe**: today's map already reflects which cafés succeeded (rivals cluster near busy spots, and weak cafés have closed), so it measures association, not prediction. The report and the API mark it `time_safe: false`.
 
-**Results so far (10 Oct 2026, no Google).** Spearman with "fewer café closures at the spot since 2019", with 90% intervals:
+**Results (10 Oct 2026, with Google).** Google matched 144 of the 186 cafés: 131 operational, 12 permanently closed and 1 temporarily closed. Spearman with each outcome, with 90% intervals for the baseline and the full model:
 
-| Rung | Cross-section, 186 cafés | Backtest, 29 cafés (time-safe) |
-|---|---|---|
-| Foot traffic only | 0.03 [−0.06, 0.13] | 0.09 [−0.24, 0.36] |
-| + fit and anchors | 0.03 | 0.14 |
-| + competition (Huff) | 0.08 | 0.39 [0.11, 0.62] |
-| + customer agents | 0.07 | 0.35 |
-| + price response | 0.07 | 0.35 |
-| Full model | 0.08 [−0.05, 0.20] | 0.27 [−0.01, 0.51] |
+| Rung | Reviews per month (132) | Review count, log (132) | Still trading per Google (143, 12 closed) | Fewer closures at the spot (186) |
+|---|---|---|---|---|
+| Foot traffic only | 0.06 [−0.08, 0.19] | 0.03 [−0.12, 0.16] | −0.08 [−0.24, 0.09] | 0.03 [−0.06, 0.13] |
+| + fit and anchors | 0.06 | 0.04 | −0.07 | 0.03 |
+| + competition (Huff) | 0.09 | 0.07 | 0.12 [−0.01, 0.24] | 0.08 |
+| + customer agents | 0.09 | 0.07 | 0.10 | 0.07 |
+| + price response | 0.09 | 0.08 | 0.10 | 0.07 |
+| Full model | 0.08 [−0.07, 0.22] | 0.06 [−0.09, 0.21] | 0.06 [−0.08, 0.20] | 0.08 [−0.05, 0.20] |
 
-**No layer has a gain over foot traffic that clears the noise.** Every gain interval includes or touches zero. In the small time-safe cohort, competition looks helpful, but that cohort's churn is entirely its 8 takeover spots. In the six-times-larger cross-section, the effect disappears. Site churn is a blunt outcome: most spots have none.
+The time-safe backtest on the same outcomes:
 
-On the mock city, where reviews come from a known "true" performance, the same pipeline recovers the planted signal (Spearman ≈ 0.36 with reviews per month). The comparison works; the real-data outcome it needs is Google reviews.
+| Rung | Reviews per month (24) | Review count, log (24) | Fewer closures at the spot (29) |
+|---|---|---|---|
+| Foot traffic only | 0.08 [−0.27, 0.39] | 0.18 [−0.16, 0.48] | 0.09 [−0.24, 0.36] |
+| + fit and anchors | 0.09 | 0.18 | 0.14 |
+| + competition (Huff) | 0.14 | 0.22 | 0.39 [0.11, 0.62] |
+| + customer agents | 0.18 | 0.27 | 0.35 |
+| + price response | 0.20 | 0.29 | 0.35 |
+| Full model | 0.23 [−0.15, 0.57] | 0.33 [−0.08, 0.64] | 0.27 [−0.01, 0.51] |
+
+**What it shows:**
+- **No layer beats foot traffic convincingly on reviews.** In the time-safe cohort, the full model leads foot traffic by about 0.15, but on 24 cafés that gain's interval includes zero. In the six-times-larger cross-section, no rung relates to reviews at all: every Spearman is under 0.1. The bigger sample doesn't back up the small one.
+- **One lead: competition and closures.** The 12 cafés Google lists as permanently closed sit at busy but crowded spots: their median competition factor is 0.033, against 0.078 for open cafés. Foot traffic alone ranks them slightly *above* open cafés (−0.08). Adding Huff competition reverses that (0.12), a gain of [+0.10, +0.29]. That's the only gain interval in either analysis that clears zero. Don't read much into it:
+  - there are only 12 closures, and 3 of them are in one CBD block
+  - it's not time-safe
+  - the rung's own correlation interval still includes zero
+  - 4 outcomes × 6 rungs × 2 analyses were compared, so one 90% interval clearing zero is about what chance gives
+
+  It's worth re-testing on new closures.
+- **Reviews may be a poor revenue proxy for grab-and-go cafés.** Three of the model's top five in the cross-section have 0.4 to 2.6 reviews a month: a hospital café (Westend Coffee, Westmead Hospital), a station bakery (Eastern Concourse Bakery Cafe, Parramatta Station) and Coco Lane Cafe by Westfield. Reviews follow sit-down "destination" cafés more than takings. Real sales figures would settle what reviews can't.
+- **Site churn:** no gain clears the noise. In the small cohort competition looks helpful, but that's its 8 takeover spots, and the effect disappears in the cross-section.
+
+On the mock city, where reviews come from a known "true" performance, the same pipeline recovers the planted signal (Spearman ≈ 0.36 with reviews per month). So the comparison works; on real data, reviews don't show a model signal.
 
 
 ## Configuration
@@ -388,6 +422,7 @@ sitescore/
 frontend/        web app: React + TypeScript, Leaflet map, ECharts
 backtests/       backtest cohorts (CSV)
 data/demo-pack/  snapshot of the processed real data (loaded on a fresh clone)
+data/raw/        Google Places cache and request ledger (gitignored, never committed)
 tests/
 ```
 
