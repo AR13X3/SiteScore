@@ -3,6 +3,7 @@
     python run.py data                 # real where possible, mock fallback per source
     python run.py data --mock          # regenerate mock data only
     python run.py data --only osm      # one source (repeatable)
+    python run.py data --only google_places --force   # refetch even if fresh (Places)
     python run.py data --make-demo-pack     # snapshot real tables into data/demo-pack/
     python run.py data --restore-demo-pack  # load the pack (only tables with no data)
 """
@@ -10,11 +11,12 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import logging
 import time
 
 from sitescore.datastore import DataStore
-from sitescore.pipeline import ADAPTERS, demo_pack, run_all
+from sitescore.pipeline import ADAPTERS, build_context, demo_pack, run_all
 from sitescore.settings import get_settings
 
 
@@ -23,6 +25,9 @@ def main() -> None:
     parser.add_argument("--mock", action="store_true", help="only (re)generate mock data")
     parser.add_argument("--only", action="append", choices=[a.source_id for a in ADAPTERS],
                         help="run just this source (repeatable)")
+    parser.add_argument("--force", action="store_true",
+                        help="refetch sources that keep fresh data (Google Places: within "
+                             "30 days); the Places request ledger still applies")
     parser.add_argument("--make-demo-pack", action="store_true",
                         help="copy the real tables into data/demo-pack/ (to commit)")
     parser.add_argument("--restore-demo-pack", action="store_true",
@@ -45,7 +50,9 @@ def main() -> None:
         print("Nothing to restore: every table already has data." if not restored else "")
         return
     t0 = time.perf_counter()
-    results = run_all(store, mock_only=args.mock, only=set(args.only) if args.only else None)
+    ctx = dataclasses.replace(build_context(), force=args.force)
+    results = run_all(store, ctx, mock_only=args.mock,
+                      only=set(args.only) if args.only else None)
     print(f"\n{'source':<22} {'table':<15} {'data':<5} {'rows':>8}  note")
     for r in results:
         print(f"{r.source_id:<22} {r.table:<15} {r.provenance:<5} {r.rows:>8}  {r.note}")

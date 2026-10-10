@@ -183,14 +183,23 @@ def _ladder(predictions, outcomes: list[Outcome], actual_scores: np.ndarray
     survived = np.array([{"survived": 1.0, "closed": 0.0}.get(x.status, np.nan) if x else np.nan
                          for x in h])
     churn = np.array([-x.site_closures if x else np.nan for x in h], float)
+    # The same Google outcomes as the cross-section, so the two can be compared directly.
+    rpm = np.array([np.nan if o.reviews_per_month is None else o.reviews_per_month
+                    for o in outcomes], float)
+    log_reviews = np.array([np.nan if o.reviews is None else np.log1p(o.reviews)
+                            for o in outcomes], float)
+    few, google = "too few businesses with this outcome", "needs Google Places (GOOGLE_PLACES_API_KEY)"
+    has_google = any(o.reviews is not None for o in outcomes)
     candidates = [
-        ("actual_score", "Combined actual-performance score", actual_scores),
-        ("survival_18m", "Survived 18 months (vs closed)", survived),
-        ("site_churn", "Fewer café closures at the spot since 2019", churn),
+        ("actual_score", "Combined actual-performance score", actual_scores, few),
+        ("reviews_per_month", "Google reviews per month since opening", rpm,
+         few if has_google else google),
+        ("log_reviews", "Google review count (log)", log_reviews, few if has_google else google),
+        ("survival_18m", "Survived 18 months (vs closed)", survived, few),
+        ("site_churn", "Fewer café closures at the spot since 2019", churn, few),
     ]
-    return [OutcomeComparison(**metrics.compare_outcome(key, label, scores, y,
-                                                        "too few businesses with this outcome"))
-            for key, label, y in candidates]
+    return [OutcomeComparison(**metrics.compare_outcome(key, label, scores, y, note))
+            for key, label, y, note in candidates]
 
 
 def _survival(outcomes: list[Outcome], pred: np.ndarray, base: np.ndarray,

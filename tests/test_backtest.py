@@ -179,3 +179,30 @@ def test_backtest_result_is_complete(result):
     assert 0 <= a.pairwise_accuracy <= 1 and a.pairs > 0
     assert sorted(r.predicted_rank for r in result.rows) == list(range(1, a.n + 1))
     assert result.caveats and result.provenance["pois"] == "mock"
+
+
+def test_time_safe_ladder_has_the_cross_sections_google_outcomes(result):
+    """Reviews per month and review count are compared rung by rung in the backtest too,
+    so the time-safe cohort and the cross-section answer the same question."""
+    ladder = {o.outcome: o for o in result.ladder}
+    assert list(ladder) == ["actual_score", "reviews_per_month", "log_reviews",
+                            "survival_18m", "site_churn"]
+    rpm = ladder["reviews_per_month"]
+    assert rpm.available and rpm.steps[0].n == sum(
+        r.actual.reviews_per_month is not None for r in result.rows)
+
+
+def test_same_business_spacing_variants():
+    from sitescore.matching import same_business
+    assert same_business("Longshot Cafe", "Cafe Long Shot")
+    assert same_business("Memphis 9", "Memphis9 Cafe")
+    assert same_business("Black sheep cafe", "BLACKSHEEP ESPRESSO")
+    assert same_business("MeetFresh", "Meet Fresh Eastwood")
+    assert not same_business("Koko 'n' Beans", "XA Expresso")
+    assert not same_business("Cafe Bros", "Brosnan Fitness")   # 'bros' is too short to prefix
+    # Sharing a suburb doesn't make two businesses one; a name of only place words still matches.
+    assert not same_business("Crunch Fitness Parramatta", "Cotti Coffee (Parramatta)")
+    assert not same_business("North Parramatta Out Of School Hours Care",
+                             "Piccolo Me - North Parramatta")
+    assert same_business("Parramatta Cafe", "Cafe Parramatta")
+    assert same_business("Park Cafe", "The Park Café")

@@ -25,7 +25,7 @@ import pandas as pd
 
 from sitescore.config import Region, Source, load_region, load_sources
 from sitescore.datastore import DataStore
-from sitescore.paths import raw_dir
+from sitescore.paths import REPO_RAW_DIR, raw_dir
 from sitescore.settings import Settings, get_settings
 
 log = logging.getLogger(__name__)
@@ -41,6 +41,11 @@ class PipelineContext:
     snapshot_dates: list[dt.date] = field(default_factory=list)
     # The store being filled, for adapters that build on another source's output.
     store: DataStore | None = None
+    # Raw files kept inside the repo (gitignored) so every machine and sandbox shares
+    # them: the Google Places cache and its request ledger.
+    repo_raw_dir: Path = REPO_RAW_DIR
+    # `python run.py data --force`: refetch sources that would otherwise keep fresh data.
+    force: bool = False
 
     def source(self, source_id: str) -> Source:
         return self.sources[source_id]
@@ -89,6 +94,11 @@ def stamp(df: pd.DataFrame, *, published_at, valid_from, valid_to=None, version=
     return df
 
 
+class KeepExisting(Exception):
+    """Raised by fetch() when the real table on disk is fresh enough: nothing is
+    fetched and nothing is written, not even the mock fallback."""
+
+
 class Adapter(ABC):
     source_id: ClassVar[str]
     tables: ClassVar[tuple[str, ...]]
@@ -120,6 +130,11 @@ def run_adapter(adapter: Adapter, store: DataStore, ctx: PipelineContext,
         try:
             frames = adapter.fetch(dataclasses.replace(ctx, store=store))
             return _write(adapter, store, frames, "real", "fetched")
+        except KeepExisting as exc:
+            log.info("%s: %s", adapter.source_id, exc)
+            return [RunResult(adapter.source_id, t, "real",
+                              len(store.read(t)) if store.provenance(t) == "real" else 0,
+                              str(exc)) for t in adapter.tables]
         except NotImplementedError as exc:
             note = str(exc)
         except Exception as exc:  # noqa: BLE001 - any source failure -> mock, never a broken demo

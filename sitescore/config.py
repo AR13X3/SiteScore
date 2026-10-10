@@ -335,6 +335,7 @@ class Region(Strict):
     census: dict[str, Any]
     planning_portal: dict[str, list[str]]
     geocoding: dict[str, str]
+    place_words: list[str] = []
 
     @field_validator("bbox")
     @classmethod

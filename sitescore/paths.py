@@ -15,6 +15,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = ROOT / "config"
 PROCESSED_DIR = ROOT / "data" / "processed"
+# Raw files that must survive across machines and sandboxes (e.g. the Google
+# Places cache and its request ledger). Gitignored, never committed.
+REPO_RAW_DIR = ROOT / "data" / "raw"
 FRONTEND_DIR = ROOT / "frontend"
 FRONTEND_DIST = FRONTEND_DIR / "dist"
 

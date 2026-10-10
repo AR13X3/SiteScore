@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from difflib import SequenceMatcher
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
@@ -22,18 +23,44 @@ def normalise_name(name: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", text))
 
 
+@lru_cache
+def place_words() -> frozenset[str]:
+    """Suburb and street words for the region (config/regions/<id>.yaml)."""
+    from sitescore.config import load_region  # late: config isn't needed for plain matching
+    try:
+        return frozenset(load_region().place_words)
+    except FileNotFoundError:
+        return frozenset()
+
+
 def name_tokens(name: str) -> set[str]:
+    """Distinctive words: without generic words, and without place words when the
+    name has others ('Cotti Coffee (Parramatta)' -> {'cotti'}, 'Parramatta Cafe' ->
+    {'parramatta'})."""
     words = set(normalise_name(name).split())
-    return (words - GENERIC) or words
+    rest = words - GENERIC
+    return (rest - place_words()) or rest or words
+
+
+def compact_name(name: str) -> str:
+    """Distinctive words run together: 'Cafe Long Shot' -> 'longshot'."""
+    words, keep = normalise_name(name).split(), name_tokens(name)
+    return "".join(w for w in words if w in keep)
 
 
 def same_business(a: str, b: str) -> bool:
     """Do two names plausibly refer to the same business?
 
-    True for shared distinctive words ('XS' / 'XS Espresso') or near-identical
-    spellings ('Picollo Me' / 'Piccolo Me'); False for 'Koko n Beans' / 'XA Expresso'.
+    True for shared distinctive words ('XS' / 'XS Espresso'), near-identical
+    spellings ('Picollo Me' / 'Piccolo Me') or the same words spaced differently
+    ('Longshot Cafe' / 'Cafe Long Shot', 'Meet Fresh' / 'MeetFresh Eastwood');
+    False for 'Koko n Beans' / 'XA Expresso'.
     """
     if name_tokens(a) & name_tokens(b):
+        return True
+    ca, cb = compact_name(a), compact_name(b)
+    short, long_ = sorted((ca, cb), key=len)
+    if len(short) >= 6 and long_.startswith(short):
         return True
     return SequenceMatcher(None, normalise_name(a), normalise_name(b)).ratio() >= 0.8
 

@@ -34,3 +34,14 @@ planning_portal:
 geocoding:
   country_code: au
   state: NSW
+
+# Place words in business names ("Cotti Coffee (Parramatta)", "Piccolo Me - North
+# Parramatta"). Matching names across sources ignores them when a name has other
+# words, so two businesses aren't taken for one because they share a suburb.
+place_words: [parramatta, north, south, east, west, sydney, nsw, westfield, station, plaza,
+              square, street, st, road, rd, westmead, granville, harris, park, rosehill,
+              rydalmere, ermington, dundas, telopea, oatlands, northmead, carlingford, epping,
+              eastwood, beecroft, cheltenham, melrose, wentworth, point, newington, silverwater,
+              camellia, mays, hill, constitution, winston, hills, toongabbie, pendle, lidcombe,
+              auburn, merrylands, homebush, olympic, sydney, macquarie, guildford, baulkham,
+              clyde, sydenham, kingsdene, ryde]
