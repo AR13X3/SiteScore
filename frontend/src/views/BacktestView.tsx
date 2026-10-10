@@ -137,6 +137,12 @@ function StatusChip({ status, months }: { status: HorizonStatus; months: number 
   );
 }
 
+const capitalise = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
+const SOURCE_NAMES: Record<string, string> = {
+  osm: "OpenStreetMap", google: "Google", overture: "Overture", foursquare: "Foursquare", asic: "ASIC",
+};
+
 function TimeSafe({ result, region, dark }: { result: BacktestResult; region: Region; dark: boolean }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -148,6 +154,9 @@ function TimeSafe({ result, region, dark }: { result: BacktestResult; region: Re
   const maxScore = Math.max(...result.rows.map((r) => r.predicted_score), 1);
   const hasGoogle = result.outcome_sources.includes("google");
   const churn = result.ladder.find((l) => l.outcome === "site_churn");
+  const reviews = result.ladder.find((l) => l.outcome === "reviews_per_month");
+  const rungs = reviews?.available ? reviews.steps : [];
+  const fullRung = rungs.find((st) => st.key === "full");
 
   const points = useMemo<MapPoint[]>(
     () =>
@@ -196,6 +205,12 @@ function TimeSafe({ result, region, dark }: { result: BacktestResult; region: Re
             </li>
           )}
           {churn?.available && <li>{ladderVerdict(churn)}</li>}
+          {reviews?.available && fullRung && (
+            <li>
+              <strong>Google reviews per month</strong> ({rungs[0].n} cafés): full model {num2(fullRung.spearman)} vs foot
+              traffic only {num2(rungs[0].spearman)} (Spearman). {ladderVerdict(reviews)}
+            </li>
+          )}
           {!hasGoogle && (
             <li>
               <strong>The missing measure is trading performance.</strong> Without Google reviews there is no way to tell a
@@ -383,7 +398,7 @@ function Evidence({ row: r }: { row: BacktestRow }) {
           <tbody>
             {r.actual.evidence.map((e, i) => (
               <tr key={i}>
-                <td>{e.source}</td>
+                <td>{SOURCE_NAMES[e.source] ?? e.source}</td>
                 <td>{e.open ? "open" : "closed"}</td>
                 <td className="num">{e.weight.toFixed(2)}</td>
                 <td>
@@ -465,7 +480,7 @@ function Today({ result, region, dark }: { result: CrossSectionResult; region: R
   return (
     <>
       <div className="alert alert--inline alert--warn">
-        <strong>Not time-safe.</strong> {result.caveats[0].replace(/^Not time-safe:\s*/i, "")}
+        <strong>Not time-safe.</strong> {capitalise(result.caveats[0].replace(/^Not time-safe:\s*/i, ""))}
       </div>
       <div className="kpis">
         <Tile label="Independent cafés on today's map" value={String(result.n)} note={`scored with data as of ${result.as_of}`} />

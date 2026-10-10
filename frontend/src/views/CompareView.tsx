@@ -317,7 +317,8 @@ export function CompareView({ region, businessType, asOf, dark }: Props) {
               elapsed={searchElapsed}
               error={searchError}
               hasCosts={!!costs}
-              canAdd={sites.length < MAX_SITES}
+              room={MAX_SITES - sites.length}
+              maxSites={MAX_SITES}
               addedIds={addedSpots}
               activeId={activeSpot}
               onSearch={runSearch}

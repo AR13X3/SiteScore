@@ -1,3 +1,4 @@
+import { bulkAdd } from "../lib/finder";
 import { money, pct } from "../lib/format";
 import type { RankBy, SearchResult, SearchWhere, Spot } from "../lib/types";
 
@@ -18,7 +19,9 @@ interface Props {
   elapsed: number;
   error: string | null;
   hasCosts: boolean;
-  canAdd: boolean;
+  /** How many more sites the comparison can take. */
+  room: number;
+  maxSites: number;
   addedIds: Set<string>;
   activeId: string | null;
   onSearch: () => void;
@@ -32,8 +35,10 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(m % 1000 ? 1 : 0)} 
 
 /** Find the best spots inside a circle: vacant shopfronts or anywhere, by revenue or profit. */
 export function FinderPanel(props: Props) {
-  const { settings: s, onChange, result, searching, elapsed, error, hasCosts, canAdd, addedIds } = props;
+  const { settings: s, onChange, result, searching, elapsed, error, hasCosts, room, addedIds } = props;
+  const canAdd = room > 0;
   const profit = result?.rank_by === "profit";
+  const bulk = bulkAdd(result?.spots.map((sp) => sp.id) ?? [], addedIds, room, props.maxSites);
   const stale = result && (result.lat !== round5(s.lat) || result.lon !== round5(s.lon) ||
     result.radius_m !== s.radius || result.where !== s.where || result.rank_by !== s.rankBy);
 
@@ -138,11 +143,12 @@ export function FinderPanel(props: Props) {
               })}
             </ol>
           )}
-          {result.spots.length > 1 && canAdd && (
-            <button className="btn btn--ghost btn--small" onClick={() => props.onAddTop(3)}>
-              Compare the top 3
+          {bulk.count > 0 && (
+            <button className="btn btn--ghost btn--small" onClick={() => props.onAddTop(bulk.count)}>
+              {bulk.label}
             </button>
           )}
+          {bulk.note && <p className="muted small finder__room">{bulk.note}</p>}
           <ul className="finder__notes muted small">
             {result.notes.map((n, i) => (
               <li key={i}>{n}</li>

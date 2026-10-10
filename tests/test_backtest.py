@@ -204,7 +204,7 @@ def test_actual_score_uses_the_votes_verdict_not_its_margin():
     osm = Evidence("osm", True, 1.0, "on the map", TODAY)
     weak = Evidence("overture", False, 0.4, "not listed", TODAY)
     google_open = Evidence("google", True, 3.0, "Google: operational", TODAY)
-    google_closed = Evidence("google", False, 3.0, "Google: closed_permanently", TODAY)
+    google_closed = Evidence("google", False, 3.0, "Google: permanently closed", TODAY)
     outcomes = [
         Outcome(True, 0.44, [osm, weak], 30),                         # Google didn't match
         Outcome(True, 1.0, [osm, google_open], 30),

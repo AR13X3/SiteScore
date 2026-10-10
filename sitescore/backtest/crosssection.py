@@ -44,8 +44,9 @@ CAVEATS = [
      "outcomes. Today's map already reflects which cafés succeeded (rivals cluster near "
      "busy spots, weak cafés have closed), so this shows association, not prediction. "
      "The backtest is the time-safe test."),
-    ("Survivors only: cafés that already closed aren't in today's population, which "
-     "narrows the spread of outcomes."),
+    ("Mostly survivors: cafés that closed and were taken off the map aren't in today's "
+     "population, which narrows the spread of outcomes. Only closures the map hasn't "
+     "caught up with remain (see 'still trading per Google')."),
     ("Reviews per month divides by the time since the café was first known anywhere "
      "(first mapped or added to Foursquare), clamped to 6-120 months; that understates "
      "the age of old cafés. The plain review count needs no age guess but favours them."),

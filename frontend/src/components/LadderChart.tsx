@@ -8,13 +8,7 @@ const x = (v: number) => ((Math.max(-1, Math.min(1, v)) + 1) / 2) * 100; // Spea
 const num = (v: number | null) => (v === null ? "n/a" : (v >= 0 ? "" : "−") + Math.abs(v).toFixed(2));
 const interval = (ci: [number, number] | null) => (ci ? `${num(ci[0])} to ${num(ci[1])}` : "");
 
-/** Does any rung's gain over foot traffic clear the noise (90% interval above zero)? */
-export function ladderVerdict(c: OutcomeComparison): string {
-  const winners = c.steps.filter((s) => s.gain_ci && s.gain_ci[0] > 0);
-  if (!c.steps.length) return "";
-  if (!winners.length) return "No layer adds ranking power over foot traffic that clears the noise: every 90% interval for the gain includes or touches zero.";
-  return `${winners.map((s) => s.label.replace(/^\+ /, "")).join(", ")}: gain over foot traffic with a 90% interval above zero.`;
-}
+export { ladderVerdict } from "../lib/ladder";
 
 /**
  * Dot-and-interval plot: each rung of the model (layers switched on up to there) and

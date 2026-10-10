@@ -196,8 +196,10 @@ select {
 .boundary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 16px; }
 
 /* ---- Uncertainty ------------------------------------------------------- */
-.site-total { display: inline-flex; align-items: baseline; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
-.site-range { flex-basis: 100%; text-align: right; font-size: 11px; font-weight: 400; color: var(--text-muted); }
+/* A grid, not a wrapping flex row: its width is the wider of "#3 $1.3M" and the range
+   below it, not their sum, so the site name keeps its room on a phone. */
+.site-total { display: inline-grid; grid-template-columns: auto auto; column-gap: 4px; align-items: baseline; justify-content: end; }
+.site-range { grid-column: 1 / -1; text-align: right; font-size: 11px; font-weight: 400; color: var(--text-muted); }
 .tt-range { color: var(--text-muted); font-size: 11px; }
 .odds { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-secondary); }
 .assumptions { margin: 4px 8px 4px; font-size: 12px; }

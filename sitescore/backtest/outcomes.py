@@ -348,7 +348,8 @@ def _google(place: pd.Series | None, weight: float) -> Evidence | None:
     if place is None or place["business_status"] not in ("OPERATIONAL", "CLOSED_PERMANENTLY"):
         return None
     is_open = place["business_status"] == "OPERATIONAL"
-    return Evidence("google", is_open, weight, f"Google: {place['business_status'].lower()}",
+    status = "operational" if is_open else "permanently closed"
+    return Evidence("google", is_open, weight, f"Google: {status}",
                     pd.Timestamp(place["version"]).date())
 
 
