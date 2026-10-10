@@ -246,3 +246,18 @@ def test_lookup_list_includes_businesses_that_have_since_closed(mock_store):
     assert any(osm_id not in latest_ids for osm_id in todo["osm_id"])
     assert all(json.loads(t).get("amenity") in ("cafe", "childcare") or
                json.loads(t).get("leisure") == "fitness_centre" for t in todo["tags"])
+
+
+def test_backtest_ignores_real_places_data_past_googles_30_days(mock_store, tmp_path):
+    """Google's terms allow keeping Places content 30 days: after that the backtest stops
+    using it (and says how to delete it) rather than scoring with expired data."""
+    from sitescore.backtest.outcomes import OutcomeTables
+    store = DataStore(tmp_path / "store")
+    shutil.copytree(mock_store.root, store.root)
+    for table in ("pois", "places"):
+        store.write(table, mock_store.read(table), "real")
+    fetched = pd.Timestamp(store.read("places")["version"].min()).date()
+    assert OutcomeTables.load(store, fetched + dt.timedelta(days=30)).places is not None
+    assert OutcomeTables.load(store, fetched + dt.timedelta(days=31)).places is None
+    # mock data never expires (it isn't Google's)
+    assert OutcomeTables.load(mock_store, fetched + dt.timedelta(days=400)).places is not None

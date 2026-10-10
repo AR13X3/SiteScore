@@ -16,6 +16,7 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 
@@ -24,9 +25,11 @@ import pandas as pd
 from sitescore.backtest import lifecycle
 from sitescore.backtest.cohort import Business
 from sitescore.backtest.lifecycle import Fate
-from sitescore.config import SurvivalCfg
+from sitescore.config import SurvivalCfg, load_sources
 from sitescore.datastore import DataStore
 from sitescore.matching import best_match, distance_m, normalise_name, same_business
+
+log = logging.getLogger(__name__)
 
 DAYS = ["mo", "tu", "we", "th", "fr", "sa", "su"]
 
@@ -154,7 +157,7 @@ class OutcomeTables:
     names: pd.DataFrame | None
 
     @classmethod
-    def load(cls, store: DataStore) -> OutcomeTables:
+    def load(cls, store: DataStore, today: dt.date | None = None) -> OutcomeTables:
         pois = store.read("pois")
         world = store.provenance("pois")
 
@@ -163,8 +166,25 @@ class OutcomeTables:
             return store.read(table) if ok else None
 
         return cls(pois, pois[pois["version"] == pois["version"].max()].set_index("osm_id"),
-                   same_world("places"), same_world("overture_places"), same_world("fsq_places"),
+                   _unexpired_places(store, same_world("places"), today),
+                   same_world("overture_places"), same_world("fsq_places"),
                    same_world("business_names"))
+
+
+def _unexpired_places(store: DataStore, places: pd.DataFrame | None, today: dt.date | None
+                      ) -> pd.DataFrame | None:
+    """Real Google Places data only while Google's terms allow keeping it (cache_days)."""
+    if places is None or store.provenance("places") != "real" or places.empty:
+        return places
+    days = int(load_sources()["google_places"].model_extra.get("cache_days", 30))
+    fetched = pd.Timestamp(places["version"].min()).date()
+    age = ((today or dt.date.today()) - fetched).days  # noqa: DTZ011 (local calendar date)
+    if age <= days:
+        return places
+    log.warning("Google Places data was fetched %s, %d days ago; Google's terms allow keeping "
+                "it %d days, so it is ignored. Delete data/processed/places.real.parquet and the "
+                "answers in data/raw/google_places/ (keep ledger.json).", fetched, age, days)
+    return None
 
 
 def observe(businesses: list[Business], store: DataStore, today: dt.date,
@@ -178,7 +198,7 @@ def observe(businesses: list[Business], store: DataStore, today: dt.date,
     """
     w = {"google": 3.0, "osm_closed": 2.0, "osm_open": 1.0, "overture": 1.0,
          "foursquare": 1.0, "asic": 0.75, **(weights or {})}
-    src = OutcomeTables.load(store)
+    src = OutcomeTables.load(store, today)
     history = src.pois.sort_values("version").groupby("osm_id")
     out = {}
     for b in businesses:

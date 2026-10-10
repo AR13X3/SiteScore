@@ -92,7 +92,7 @@ def cross_section(store: DataStore, profile: BusinessProfile, cfg: ModelConfig, 
         profits.append(result.monthly_profit)
         rents.append(result.rent.monthly if result.rent else None)
 
-    src = OutcomeTables.load(store)
+    src = OutcomeTables.load(store, today)
     rows_data = [_outcomes(r, lc, src, today, bt.survival.site_radius_m)
                  for r in pop.itertuples()]
     scores = metrics.ladder_scores(
