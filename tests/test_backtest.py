@@ -188,8 +188,31 @@ def test_time_safe_ladder_has_the_cross_sections_google_outcomes(result):
     assert list(ladder) == ["actual_score", "reviews_per_month", "log_reviews",
                             "survival_18m", "site_churn"]
     rpm = ladder["reviews_per_month"]
+    google_closed = [any(e.source == "google" and e.open is False for e in r.actual.evidence)
+                     for r in result.rows]
+    assert any(google_closed)  # the mock world has closures Google knows about
     assert rpm.available and rpm.steps[0].n == sum(
-        r.actual.reviews_per_month is not None for r in result.rows)
+        r.actual.reviews_per_month is not None and not closed
+        for r, closed in zip(result.rows, google_closed, strict=True))
+
+
+def test_actual_score_uses_the_votes_verdict_not_its_margin():
+    """Two open cafés, one that Google didn't match (a lower vote margin): coverage
+    mustn't read as worse performance. A closed café's reviews don't count."""
+    from sitescore.backtest.outcomes import Evidence, Outcome
+    from sitescore.backtest.runner import _actual_scores
+    osm = Evidence("osm", True, 1.0, "on the map", TODAY)
+    weak = Evidence("overture", False, 0.4, "not listed", TODAY)
+    google_open = Evidence("google", True, 3.0, "Google: operational", TODAY)
+    google_closed = Evidence("google", False, 3.0, "Google: closed_permanently", TODAY)
+    outcomes = [
+        Outcome(True, 0.44, [osm, weak], 30),                         # Google didn't match
+        Outcome(True, 1.0, [osm, google_open], 30),
+        Outcome(False, -0.5, [osm, google_closed], 30, 400, 13.0, 4.5),  # closed, many reviews
+    ]
+    scores = _actual_scores(outcomes, {"survival": 1.0, "reviews_per_month": 1.0,
+                                       "rating": 0.5, "hours_change": 0.5})
+    assert scores[0] == scores[1] > scores[2]
 
 
 def test_same_business_spacing_variants():

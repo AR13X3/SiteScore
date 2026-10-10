@@ -132,6 +132,12 @@ class Outcome:
         return None
 
     @property
+    def google_closed(self) -> bool:
+        """Google lists it as permanently closed: its reviews stopped when it closed, so
+        reviews per month and rating don't measure how it traded."""
+        return any(e.source == "google" and e.open is False for e in self.evidence)
+
+    @property
     def status_source(self) -> str:
         return ", ".join(sorted({e.source for e in self.evidence})) or "unknown"
 
@@ -226,10 +232,14 @@ def _horizon(b: Business, fate: Fate | None, place: pd.Series | None, src: Outco
     or Overture "permanently closed" (dated by when that was observed).
     Still trading on a date: a mapper edited or checked it as this business then,
     or, while it's still on the map, an independent listing confirmed it then.
+    Listings lag, so once any source has recorded a closure only a mapper's edit or
+    check can show it was still trading (e.g. Overture still listing a café that
+    Google says has closed doesn't prove it lasted past the horizon).
     """
     horizon = (pd.Timestamp(b.opened) + pd.DateOffset(months=cfg.horizon_months)).date()
     closures: list[tuple[dt.date, str, str | None]] = []   # (date, detail, OSM kind)
     trading: list[tuple[dt.date, str]] = []
+    listings: list[tuple[dt.date, str]] = []               # trading per a listing only
     if fate is not None:
         if fate.closed is not None:
             closures.append((fate.closed.date(), fate.detail, fate.kind))
@@ -243,14 +253,14 @@ def _horizon(b: Business, fate: Fate | None, place: pd.Series | None, src: Outco
         if place["business_status"] == "CLOSED_PERMANENTLY":
             closures.append((seen, "Google: permanently closed", None))
         elif place["business_status"] == "OPERATIONAL" and on_map:
-            trading.append((seen, "Google: operational"))
+            listings.append((seen, "Google: operational"))
     fsq = best_match(b.name, b.lat, b.lon, src.fsq, max_m=150) if src.fsq is not None else None
     if fsq is not None:
         closed = fsq["date_closed"]
         if pd.notna(closed) and closed >= pd.Timestamp(b.opened) - pd.Timedelta(days=30):
             closures.append((pd.Timestamp(closed).date(), "Foursquare: marked closed", None))
         elif pd.isna(closed) and pd.notna(fsq["date_refreshed"]) and on_map:
-            trading.append((pd.Timestamp(fsq["date_refreshed"]).date(), "Foursquare: refreshed"))
+            listings.append((pd.Timestamp(fsq["date_refreshed"]).date(), "Foursquare: refreshed"))
     ov = (best_match(b.name, b.lat, b.lon, src.overture, max_m=150)
           if src.overture is not None else None)
     if ov is not None:
@@ -258,7 +268,9 @@ def _horizon(b: Business, fate: Fate | None, place: pd.Series | None, src: Outco
         if ov["operating_status"] == "permanently_closed":
             closures.append((release, "Overture: permanently closed", None))
         elif float(ov["confidence"]) >= cfg.overture_min_confidence and on_map:
-            trading.append((release, f"Overture: listed ({float(ov['confidence']):.2f})"))
+            listings.append((release, f"Overture: listed ({float(ov['confidence']):.2f})"))
+    if not closures:
+        trading += listings
 
     last_seen, why = max(trading) if trading else (None, "")
     if closures:

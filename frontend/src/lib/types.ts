@@ -324,6 +324,7 @@ export interface CrossSectionRow {
   rating: number | null;
   age_months: number | null;
   site_closures: number;
+  google_status: string | null;
 }
 
 export interface CrossSectionResult {

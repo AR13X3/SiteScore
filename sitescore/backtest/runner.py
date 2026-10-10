@@ -141,11 +141,19 @@ def _ranks(values: np.ndarray) -> np.ndarray:
 
 
 def _actual_scores(outcomes: list[Outcome], weights: dict[str, float]) -> np.ndarray:
-    """Weighted mean of standardised proxies; NaN where a business has none."""
+    """Weighted mean of standardised proxies; NaN where a business has none.
+
+    Survival counts as the vote's verdict (open +1, closed -1), not its margin: the
+    margin mostly says how many sources know the business (a café Google didn't
+    match scores lower), not how well it trades. Reviews and rating of a café
+    Google lists as closed are left out (they stopped when it closed).
+    """
     raw = {
-        "survival": [o.survival_score for o in outcomes],
-        "reviews_per_month": [o.reviews_per_month for o in outcomes],
-        "rating": [o.rating for o in outcomes],
+        "survival": [None if o.still_open is None else (1.0 if o.still_open else -1.0)
+                     for o in outcomes],
+        "reviews_per_month": [None if o.google_closed else o.reviews_per_month
+                              for o in outcomes],
+        "rating": [None if o.google_closed else o.rating for o in outcomes],
         "hours_change": [o.hours_change for o in outcomes],
     }
     total = np.zeros(len(outcomes))
@@ -184,10 +192,10 @@ def _ladder(predictions, outcomes: list[Outcome], actual_scores: np.ndarray
                          for x in h])
     churn = np.array([-x.site_closures if x else np.nan for x in h], float)
     # The same Google outcomes as the cross-section, so the two can be compared directly.
-    rpm = np.array([np.nan if o.reviews_per_month is None else o.reviews_per_month
-                    for o in outcomes], float)
-    log_reviews = np.array([np.nan if o.reviews is None else np.log1p(o.reviews)
-                            for o in outcomes], float)
+    rpm = np.array([np.nan if o.reviews_per_month is None or o.google_closed
+                    else o.reviews_per_month for o in outcomes], float)
+    log_reviews = np.array([np.nan if o.reviews is None or o.google_closed
+                            else np.log1p(o.reviews) for o in outcomes], float)
     few, google = "too few businesses with this outcome", "needs Google Places (GOOGLE_PLACES_API_KEY)"
     has_google = any(o.reviews is not None for o in outcomes)
     candidates = [

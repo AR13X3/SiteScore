@@ -51,11 +51,15 @@ CAVEATS = [
      "the age of old cafés. The plain review count needs no age guess but favours them."),
     ("Site churn counts other cafés that closed within 25 m since 2019. Most spots have "
      "none, so it mostly separates 'some turnover' from 'none'."),
+    ("Cafés Google lists as permanently closed (still on the map because nobody has "
+     "updated it) are left out of the review outcomes, since their reviews stopped when "
+     "they closed; they are compared instead in 'still trading per Google'."),
 ]
 
 OUTCOMES = {
     "reviews_per_month": "Google reviews per month",
     "log_reviews": "Google review count (log)",
+    "google_open": "Still trading per Google (vs permanently closed)",
     "site_churn": "Fewer café closures at the spot since 2019",
 }
 
@@ -101,24 +105,34 @@ def cross_section(store: DataStore, profile: BusinessProfile, cfg: ModelConfig, 
         **rows_data[i],
     ) for i, r in enumerate(pop.itertuples())]
 
-    def values(key: str) -> np.ndarray | None:
-        if key == "site_churn":
-            return -np.array([x.site_closures for x in rows], float)
-        if src.places is None:
-            return None
-        if key == "log_reviews":
-            return np.array([np.nan if x.reviews is None else np.log1p(x.reviews) for x in rows])
-        return np.array([np.nan if x.reviews_per_month is None else x.reviews_per_month
-                         for x in rows])
-
     outcomes = [OutcomeComparison(**metrics.compare_outcome(
-        key, label, scores, values(key), "needs Google Places (GOOGLE_PLACES_API_KEY)"))
+        key, label, scores, outcome_values(key, rows, src.places is not None),
+        "needs Google Places (GOOGLE_PLACES_API_KEY)"))
         for key, label in OUTCOMES.items()]
     return CrossSectionResult(
         business_type=profile.id, run_on=today, as_of=market.as_of, n=len(rows), rows=rows,
         outcomes=outcomes, provenance={t: store.provenance(t) for t in TABLES},
         caveats=CAVEATS,
     )
+
+
+def outcome_values(key: str, rows: list[CrossSectionRow], have_google: bool
+                   ) -> np.ndarray | None:
+    """One outcome per café (higher = better, NaN = unknown), None if unavailable."""
+    if key == "site_churn":
+        return -np.array([x.site_closures for x in rows], float)
+    if not have_google:
+        return None
+    if key == "google_open":
+        return np.array([{"OPERATIONAL": 1.0, "CLOSED_PERMANENTLY": 0.0}.get(
+            x.google_status or "", np.nan) for x in rows])
+    # Reviews stop when a café closes, so closed ones don't count here.
+    open_ = [x.google_status != "CLOSED_PERMANENTLY" for x in rows]
+    if key == "log_reviews":
+        return np.array([np.log1p(x.reviews) if x.reviews is not None and ok else np.nan
+                         for x, ok in zip(rows, open_, strict=True)])
+    return np.array([x.reviews_per_month if x.reviews_per_month is not None and ok
+                     else np.nan for x, ok in zip(rows, open_, strict=True)])
 
 
 def _outcomes(r, lc: pd.DataFrame, src: OutcomeTables, today: dt.date, radius_m: float
@@ -138,6 +152,7 @@ def _outcomes(r, lc: pd.DataFrame, src: OutcomeTables, today: dt.date, radius_m:
         "reviews_per_month": (None if reviews is None or age is None
                               else reviews / float(np.clip(age, 6, 120))),
         "rating": None if place is None else float(place["rating"]),
+        "google_status": None if place is None else (place["business_status"] or None),
         "age_months": None if age is None else round(age, 1),
         "site_closures": int((spot["run_id"] != r.run_id).sum()),
     }

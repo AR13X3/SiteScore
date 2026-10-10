@@ -161,6 +161,7 @@ class CrossSectionRow(BaseModel):
     rating: float | None
     age_months: float | None
     site_closures: int                # other cafés that closed at this spot since 2019
+    google_status: str | None = None  # OPERATIONAL / CLOSED_PERMANENTLY / CLOSED_TEMPORARILY
 
 
 class CrossSectionResult(BaseModel):

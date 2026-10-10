@@ -94,3 +94,20 @@ def test_cross_section_recovers_the_mock_worlds_signal(report):
     reviews = next(o for o in report.outcomes if o.outcome == "reviews_per_month")
     full = reviews.steps[-1]
     assert full.spearman > 0.15 and full.spearman_ci[0] > 0
+
+
+
+def test_google_closed_cafes_leave_the_review_outcomes(report):
+    """A café Google lists as permanently closed is compared on 'still trading', not on
+    reviews (they stopped when it closed)."""
+    from sitescore.backtest.crosssection import outcome_values
+    rows = [r.model_copy(update={"reviews": 100, "reviews_per_month": 2.0,
+                                 "google_status": status})
+            for r, status in zip(report.rows[:3], ["OPERATIONAL", "CLOSED_PERMANENTLY",
+                                                   "CLOSED_TEMPORARILY"], strict=True)]
+    rpm = outcome_values("reviews_per_month", rows, have_google=True)
+    assert rpm[0] == 2.0 and np.isnan(rpm[1]) and rpm[2] == 2.0
+    assert np.isnan(outcome_values("log_reviews", rows, have_google=True)[1])
+    still = outcome_values("google_open", rows, have_google=True)
+    assert still[0] == 1.0 and still[1] == 0.0 and np.isnan(still[2])
+    assert outcome_values("google_open", rows, have_google=False) is None

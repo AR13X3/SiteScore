@@ -193,6 +193,19 @@ def test_horizon_status(fate, src, today, status):
     assert _horizon(BIZ, fate, None, src, today, BT.survival).status == status
 
 
+def test_listings_cannot_confirm_survival_once_a_closure_is_recorded():
+    """Chaffee House: still on the map, Overture still listing it in Sep 2026, but Google
+    says permanently closed. Listings lag, so that's not proof it lasted 18 months."""
+    closed = pd.Series({"business_status": "CLOSED_PERMANENTLY", "version": pd.Timestamp(TODAY)})
+    fate = _fate(last_edit="2023-06-01", on_map=True)
+    assert _horizon(BIZ, fate, None, _src(0.9), TODAY, BT.survival).status == "survived"
+    h = _horizon(BIZ, fate, closed, _src(0.9), TODAY, BT.survival)
+    assert h.status == "unknown" and "after the horizon" in h.detail
+    # a mapper's edit after the mark still counts
+    edited = _fate(last_edit="2025-03-01", on_map=True)
+    assert _horizon(BIZ, edited, closed, _src(0.9), TODAY, BT.survival).status == "survived"
+
+
 def test_a_closure_carries_its_failure_type():
     h = _horizon(BIZ, _fate("2024-05-01", "replaced"), None, _src(), TODAY, BT.survival)
     assert (h.kind, h.failure, h.closed_on) == ("replaced", "operator", dt.date(2024, 5, 1))

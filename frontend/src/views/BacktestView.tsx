@@ -450,6 +450,7 @@ function Today({ result, region, dark }: { result: CrossSectionResult; region: R
             <strong>{r.name}</strong>
             <br />#{r.predicted_rank} · {money(r.mature_monthly)}/month predicted
             {r.reviews_per_month !== null && <> · {r.reviews_per_month.toFixed(1)} reviews/month</>}
+            {r.google_status === "CLOSED_PERMANENTLY" && <> · permanently closed on Google</>}
             <br />
             {r.site_closures ? `${r.site_closures} other café closure${r.site_closures > 1 ? "s" : ""} at this spot since 2019` : "No other café closures here since 2019"}
           </>
@@ -503,7 +504,10 @@ function Today({ result, region, dark }: { result: CrossSectionResult; region: R
                 {shownRows.map((r) => (
                   <tr key={r.osm_id} className={`${selected === r.osm_id ? "is-selected" : ""} is-clickable`} onClick={() => setSelected(r.osm_id)}>
                     <td className="num">{r.predicted_rank}</td>
-                    <td>{r.name}</td>
+                    <td>
+                      {r.name}
+                      {r.google_status === "CLOSED_PERMANENTLY" && <span className="tag" title="Google lists it as permanently closed">closed</span>}
+                    </td>
                     <td className="num">{money(r.mature_monthly)}</td>
                     <td className="num">{r.reviews_per_month === null ? "–" : r.reviews_per_month.toFixed(1)}</td>
                     <td className="num">{r.site_closures}</td>
