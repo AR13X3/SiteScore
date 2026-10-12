@@ -11,7 +11,13 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from sitescore import __version__
-from sitescore.api import routes_backtest, routes_meta, routes_model, routes_search
+from sitescore.api import (
+    routes_analyst,
+    routes_backtest,
+    routes_meta,
+    routes_model,
+    routes_search,
+)
 from sitescore.api.deps import get_store
 from sitescore.config import load_business_types, load_model_config, load_region
 from sitescore.paths import FRONTEND_DIST
@@ -42,6 +48,7 @@ app.include_router(routes_meta.router)
 app.include_router(routes_model.router)
 app.include_router(routes_backtest.router)
 app.include_router(routes_search.router)
+app.include_router(routes_analyst.router)
 
 if FRONTEND_DIST.exists():
     app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")

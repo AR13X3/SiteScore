@@ -10,6 +10,7 @@ import pytest
 # variable beats .env). Tests that need a key pass a fake one explicitly.
 os.environ["GOOGLE_PLACES_API_KEY"] = ""
 os.environ["TFNSW_API_KEY"] = ""
+os.environ["OPENROUTER_API_KEY"] = ""
 
 from sitescore.datastore import DataStore
 from sitescore.pipeline import build_context, run_all

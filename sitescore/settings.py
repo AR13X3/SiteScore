@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     region: str = Field("parramatta", validation_alias="SITESCORE_REGION")
     offline: bool = Field(False, validation_alias="SITESCORE_OFFLINE")
     force_mock: bool = Field(False, validation_alias="SITESCORE_FORCE_MOCK")
+    # AI analyst (optional): any OpenRouter model that supports tool calling.
+    openrouter_api_key: str | None = Field(None, validation_alias="OPENROUTER_API_KEY")
+    openrouter_model: str = Field("anthropic/claude-haiku-5.5", validation_alias="OPENROUTER_MODEL")
 
 
 @lru_cache
