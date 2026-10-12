@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { LadderChart, ladderVerdict } from "../components/LadderChart";
 import { type MapPoint, PointsMap } from "../components/PointsMap";
@@ -23,13 +23,15 @@ interface Props {
   region: Region;
   businessType: string;
   dark: boolean;
+  /** The business-type selector, shown with this page's controls. */
+  controls?: ReactNode;
 }
 
 const dateShort = (iso: string | null) =>
   iso ? new Date(`${iso}T00:00:00`).toLocaleDateString("en-AU", { month: "short", year: "numeric" }) : "–";
 const num2 = (v: number | null) => (v === null ? "n/a" : v.toFixed(2));
 
-export function BacktestView({ region, businessType, dark }: Props) {
+export function BacktestView({ region, businessType, dark, controls }: Props) {
   const [mode, setMode] = useState<Mode>("backtest");
   const [cohorts, setCohorts] = useState<Cohort[]>([]);
   const [cohort, setCohort] = useState("osm");
@@ -60,9 +62,10 @@ export function BacktestView({ region, businessType, dark }: Props) {
 
   const shown = mode === "backtest" ? backtest : today;
   return (
-    <main className="bt">
-      <section className="bt-head">
+    <main className="bt page">
+      <section className="bt-head page-head">
         <div>
+          <span className="crumb">Evidence · time-safe backtest</span>
           <h1>Would SiteScore have picked the winners?</h1>
           <p className="muted">
             {mode === "backtest"
@@ -71,6 +74,7 @@ export function BacktestView({ region, businessType, dark }: Props) {
           </p>
         </div>
         <div className="bt-controls">
+          {controls}
           <div className="segmented" role="group" aria-label="Which test">
             <button className={mode === "backtest" ? "is-on" : ""} aria-pressed={mode === "backtest"} onClick={() => setMode("backtest")}>
               Backtest (time-safe)

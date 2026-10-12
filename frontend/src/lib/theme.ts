@@ -14,16 +14,47 @@ export function siteColor(slot: number, dark: boolean): string {
   return SITE_COLORS[dark ? "dark" : "light"][slot % MAX_SITES];
 }
 
-export function useDarkMode(): boolean {
-  const query = "(prefers-color-scheme: dark)";
-  const [dark, setDark] = useState(() => window.matchMedia(query).matches);
+export type ThemePref = "system" | "light" | "dark";
+const KEY = "sitescore.theme";
+const QUERY = "(prefers-color-scheme: dark)";
+
+function readPref(): ThemePref {
+  try {
+    const v = localStorage.getItem(KEY);
+    return v === "light" || v === "dark" ? v : "system";
+  } catch {
+    return "system";
+  }
+}
+
+/** Put the preference on <html> (CSS tokens key off data-theme). Call before first render. */
+export function applyThemePref(pref: ThemePref = readPref()): void {
+  const root = document.documentElement;
+  if (pref === "system") delete root.dataset.theme;
+  else root.dataset.theme = pref;
+}
+
+/** The theme preference (system / light / dark) and whether the page is dark right now. */
+export function useTheme(): { pref: ThemePref; setPref: (p: ThemePref) => void; dark: boolean } {
+  const [pref, setPrefState] = useState<ThemePref>(readPref);
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia(QUERY).matches);
   useEffect(() => {
-    const mq = window.matchMedia(query);
-    const onChange = () => setDark(mq.matches);
+    const mq = window.matchMedia(QUERY);
+    const onChange = () => setSystemDark(mq.matches);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, []);
-  return dark;
+  const setPref = (p: ThemePref) => {
+    try {
+      if (p === "system") localStorage.removeItem(KEY);
+      else localStorage.setItem(KEY, p);
+    } catch {
+      // private mode: the choice lasts for this visit only
+    }
+    applyThemePref(p); // before the re-render, so charts read the new tokens
+    setPrefState(p);
+  };
+  return { pref, setPref, dark: pref === "dark" || (pref === "system" && systemDark) };
 }
 
 /** Read a CSS custom property (theme token) from :root. */

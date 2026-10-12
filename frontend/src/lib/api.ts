@@ -12,8 +12,10 @@ import type {
   SearchResult,
   SimulationResult,
   Site,
+  SourceInfo,
   TableStatus,
 } from "./types";
+import type { AnalystStatus } from "./analyst";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -47,6 +49,8 @@ export const api = {
   businessTypes: () => request<BusinessType[]>("/api/business-types"),
   businessProfile: (id: string) => request<BusinessProfile>(`/api/business-types/${encodeURIComponent(id)}`),
   dataStatus: () => request<TableStatus[]>("/api/data/status"),
+  sources: () => request<SourceInfo[]>("/api/sources"),
+  analystStatus: () => request<AnalystStatus>("/api/analyst/status"),
   asOfRange: () => request<AsOfRange>("/api/data/as-of-range"),
   geocode: (q: string, signal?: AbortSignal) =>
     request<GeocodeHit[]>(`/api/geocode?q=${encodeURIComponent(q)}`, { signal }),

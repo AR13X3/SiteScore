@@ -91,6 +91,9 @@ export function RevenueChart({ result, sites, dark, metric = "revenue", costs }:
         icon: "path://M0,4 L16,4 L16,6 L0,6 Z",
         itemWidth: 16,
         itemHeight: 6,
+        // The lines' end dots have a surface-coloured ring; without this the legend's
+        // thin bars inherit it and disappear.
+        itemStyle: { borderWidth: 0 },
         textStyle: { color: text, fontSize: 12 },
       },
       tooltip: {

@@ -156,8 +156,19 @@ export interface TableStatus {
   description: string;
   provenance: "real" | "mock" | null;
   rows: number | null;
+  published_range: [string, string] | null;
   note: string;
   model_visible: boolean;
+}
+
+export interface SourceInfo {
+  id: string;
+  title: string;
+  provider: string;
+  licence: string;
+  used_for: string;
+  needs_key: boolean;
+  key_configured: boolean | null;
 }
 
 export interface Costs {
