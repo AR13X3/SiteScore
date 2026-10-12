@@ -20,7 +20,7 @@ An open-source simulator that projects 36 months of revenue for any street corne
 ![SiteScore workspace: candidate sites on the left, catchments and competitors on the map, the selected site's 36-month numbers on the right](docs/images/workspace.png)
 
 > [!IMPORTANT]
-> **Help train SiteScore.** The model is built from official open data, but the parameters that turn it into dollars are still hand-set assumptions, tested against 29 real café openings in one Sydney council. Opening dates, rents, a few months of sales or a whole new region each make it more accurate, and enough of them let us **fit the model to real outcomes** instead of guesses. [See what data helps →](#help-train-sitescore)
+> **Help train SiteScore.** The model is built from official open data, but the parameters that turn it into dollars are still hand-set assumptions, tested against 29 real café openings in one Sydney council. Opening dates, rents, a few months of sales or a whole new region each make it more accurate, and enough of them let us **fit the model to real outcomes** instead of guesses. [See what data helps →](#help-train-sitescore) · [The data we need (#8)](https://github.com/AR13X3/SiteScore/issues/8)
 
 ## What it does
 
@@ -78,7 +78,7 @@ Fitting those parameters to real results is the training step, and it needs data
 | Knowledge of **a trade** (gym, bakery, pharmacy, barber…) | A new business type: one YAML profile | [Business type issue](https://github.com/AR13X3/SiteScore/issues/new?template=business-type.yml) |
 | **Code** | Data adapters, walking-network distances, bus commuters | [Good first issues](https://github.com/AR13X3/SiteScore/issues?q=is%3Aopen+label%3A%22good+first+issue%22) |
 
-**What happens to your data:** it is used to test and fit the model, and only aggregated or anonymised data is ever committed. Nothing whose licence forbids redistribution goes in the repo. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the details, or browse the [open data requests](https://github.com/AR13X3/SiteScore/issues?q=is%3Aopen+label%3Adata).
+**What happens to your data:** it is used to test and fit the model, and only aggregated or anonymised data is ever committed. Nothing whose licence forbids redistribution goes in the repo. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the details, or start with the pinned issue, [Help train SiteScore: the data we need](https://github.com/AR13X3/SiteScore/issues/8).
 
 ## How it works
 
