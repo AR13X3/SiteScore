@@ -1,0 +1,59 @@
+name: Contribute data
+description: Opening dates, closures, rents or sales that help train and test SiteScore.
+title: "Data: "
+labels: ["data"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. Real outcomes are what SiteScore needs most: they test the model today and let us fit its parameters tomorrow.
+        **Don't paste confidential figures here.** For sales or rents, describe what you have and we'll agree a private, anonymised way to share it.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of data?
+      options:
+        - Opening dates of businesses
+        - Closures (with dates)
+        - Monthly sales or foot counts (anonymised)
+        - Commercial rents or lease prices
+        - A new public dataset or source
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: area
+    attributes:
+      label: Where?
+      description: Suburb, council or city.
+      placeholder: e.g. Parramatta, Inner West, Newtown
+    validations:
+      required: true
+  - type: input
+    id: business
+    attributes:
+      label: Business type
+      placeholder: e.g. café, gym, bakery
+  - type: textarea
+    id: details
+    attributes:
+      label: What you have
+      description: |
+        Roughly how many businesses or rows, what period it covers, and how it was collected.
+        Opening dates are welcome inline as `name, address or lat/lon, month opened (YYYY-MM)`.
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Source and licence
+      description: Where it comes from and whether it can be shared publicly (for example your own records, CC BY 4.0, or private).
+    validations:
+      required: true
+  - type: checkboxes
+    id: rights
+    attributes:
+      label: Permission
+      options:
+        - label: I have the right to share this data, and it contains no personal information.
+          required: true

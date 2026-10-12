@@ -1,0 +1,31 @@
+name: New business type
+description: Propose a trade (gym, bakery, pharmacy...) or help validate a draft profile.
+title: "Business type: "
+labels: ["business type"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A business type is one YAML profile in `config/business_types/`: who competes, which anchors help, customer segments, spend and running costs. Copy `cafe.yaml` to start. Gym and childcare are drafts that need checking.
+  - type: input
+    id: type
+    attributes:
+      label: Business type
+      placeholder: e.g. bakery
+    validations:
+      required: true
+  - type: textarea
+    id: knowledge
+    attributes:
+      label: What you know about it
+      description: Typical spend per visit, who the customers are, opening hours, rent and wage levels, how far people travel. Cite sources where you can.
+    validations:
+      required: true
+  - type: dropdown
+    id: role
+    attributes:
+      label: Are you able to add it?
+      options:
+        - Yes, I'll open a pull request
+        - I can review the assumptions
+        - Just requesting it

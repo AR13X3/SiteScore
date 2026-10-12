@@ -1,0 +1,31 @@
+name: New region
+description: Propose (or volunteer to add) a council or city.
+title: "Region: "
+labels: ["new region"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A region is one YAML file in `config/regions/` (council code, bounding box, map view). Census, OpenStreetMap and boundaries are national; station patronage and DA data are NSW sources so far. See [CONTRIBUTING.md](https://github.com/AR13X3/SiteScore/blob/main/CONTRIBUTING.md#2-add-a-region-medium).
+  - type: input
+    id: region
+    attributes:
+      label: Council or city
+      placeholder: e.g. City of Sydney (LGA 17200)
+    validations:
+      required: true
+  - type: dropdown
+    id: role
+    attributes:
+      label: Are you able to add it?
+      options:
+        - Yes, I'll open a pull request
+        - I can help test it with local knowledge
+        - Just requesting it
+    validations:
+      required: true
+  - type: textarea
+    id: local
+    attributes:
+      label: Local data or knowledge
+      description: Transport patronage, development approvals, known openings, anything that would help.
