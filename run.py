@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -91,23 +92,41 @@ def cmd_start(args: argparse.Namespace) -> None:
 
 def cmd_dev(_: argparse.Namespace) -> None:
     py = require_venv()
-    procs = [
-        subprocess.Popen(
-            [str(py), "-m", "uvicorn", "sitescore.api.main:app", "--reload",
-             "--host", HOST, "--port", str(PORT)],
-            cwd=ROOT,
-        )
-    ]
+    # On Windows, uvicorn reloads by sending Ctrl+C to the whole console. So npm gets
+    # its own process group (otherwise its batch wrapper stops to ask "Terminate batch
+    # job?"), and this script ignores Ctrl+C while the backend runs: the backend
+    # handles it, and once it exits the frontend is stopped too.
+    windows = os.name == "nt"
+    backend = subprocess.Popen(
+        [str(py), "-m", "uvicorn", "sitescore.api.main:app", "--reload",
+         "--host", HOST, "--port", str(PORT)],
+        cwd=ROOT,
+    )
+    procs = [backend]
     if has_frontend():
-        procs.append(subprocess.Popen([npm(), "run", "dev"], cwd=FRONTEND_DIR))
+        procs.append(subprocess.Popen(
+            [npm(), "run", "dev"], cwd=FRONTEND_DIR, stdin=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if windows else 0,
+        ))
+    if windows:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
-        for p in procs:
-            p.wait()
+        backend.wait()
     except KeyboardInterrupt:
         pass
     finally:
         for p in procs:
-            p.terminate()
+            stop(p)
+
+
+def stop(proc: subprocess.Popen) -> None:
+    """Stop a process and its children (npm on Windows is a batch file running node)."""
+    if proc.poll() is not None:
+        return
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True, check=False)
+    else:
+        proc.terminate()
 
 
 def cmd_data(args: argparse.Namespace) -> None:
