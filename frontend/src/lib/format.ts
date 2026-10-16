@@ -49,3 +49,30 @@ export const shortMonth = (iso: string) =>
 /** Escape text before it goes into an HTML string (ECharts tooltips). */
 export const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+
+/**
+ * "CC BY 4.0 (NSW Spatial Services); ODbL 1.0 (Nominatim)" -> two licences, each a short
+ * name and its note, so long licence strings wrap as notes instead of one long tag.
+ */
+export function licenceParts(text: string): { name: string; note: string }[] {
+  const items: string[] = [];
+  let depth = 0;
+  let cur = "";
+  for (const ch of text) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth = Math.max(0, depth - 1);
+    if (ch === ";" && depth === 0) {
+      items.push(cur);
+      cur = "";
+    } else cur += ch;
+  }
+  items.push(cur);
+  return items
+    .map((it) => it.trim())
+    .filter(Boolean)
+    .map((it) => {
+      const open = it.indexOf("(");
+      if (open < 0) return { name: it, note: "" };
+      return { name: it.slice(0, open).trim(), note: it.slice(open + 1).replace(/\)\s*$/, "").trim() };
+    });
+}

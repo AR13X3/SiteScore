@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { IconArrowRight, IconArrowUpRight, IconCheck, IconGithub, IconKey, IconPlus } from "../components/Icons";
 import { CountUpText } from "../components/Motion";
+import { licenceParts } from "../lib/format";
 import { Kicker, PageHead } from "../components/PageHead";
 import { api } from "../lib/api";
 import { CONTRIBUTING_URL, ISSUES_URL, REPO_URL, repoFile } from "../lib/project";
@@ -314,7 +315,14 @@ function SourceRows({ sources }: { sources: SourceInfo[] }) {
             <span className="muted small">{x.provider}</span>
           </span>
           <span role="cell" className="cat__source">{x.used_for}</span>
-          <span role="cell"><span className="tag">{x.licence}</span></span>
+          <span role="cell" className="cat__licences">
+            {licenceParts(x.licence).map((l, i) => (
+              <span key={i} className="cat__licence">
+                <span className="tag">{l.name}</span>
+                {l.note && <span className="muted small">{l.note}</span>}
+              </span>
+            ))}
+          </span>
           <span role="cell">
             {x.needs_key ? (
               <span className="chip">
