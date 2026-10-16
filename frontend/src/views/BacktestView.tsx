@@ -1,6 +1,8 @@
 import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import { LadderChart, ladderVerdict } from "../components/LadderChart";
+import { LadderExplorer, ladderVerdict } from "../components/LadderChart";
+import { CountUpText } from "../components/Motion";
+import { Kicker, PageHead } from "../components/PageHead";
 import { type MapPoint, PointsMap } from "../components/PointsMap";
 import { api } from "../lib/api";
 import { useElapsed } from "../lib/hooks";
@@ -63,40 +65,41 @@ export function BacktestView({ region, businessType, dark, controls }: Props) {
   const shown = mode === "backtest" ? backtest : today;
   return (
     <main className="bt page">
-      <section className="bt-head page-head">
-        <div>
-          <span className="crumb">Evidence · time-safe backtest</span>
-          <h1>Would SiteScore have picked the winners?</h1>
-          <p className="muted">
-            {mode === "backtest"
-              ? "Each café is predicted using only data published before it opened, then compared with what happened."
-              : "Every café open today, scored with today's data. A bigger sample, but not a fair test of prediction."}
-          </p>
-        </div>
-        <div className="bt-controls">
-          {controls}
-          <div className="segmented" role="group" aria-label="Which test">
-            <button className={mode === "backtest" ? "is-on" : ""} aria-pressed={mode === "backtest"} onClick={() => setMode("backtest")}>
-              Backtest (time-safe)
-            </button>
-            <button className={mode === "today" ? "is-on" : ""} aria-pressed={mode === "today"} onClick={() => setMode("today")}>
-              Today's cafés (not time-safe)
-            </button>
+      <PageHead
+        kicker={mode === "backtest" ? "evidence.backtest(time_safe=true)" : "evidence.cross_section(today)"}
+        title="Would SiteScore have picked the winners?"
+        aside={
+          <div className="bt-controls">
+            {controls}
+            <div className="segmented" role="group" aria-label="Which test">
+              <button className={mode === "backtest" ? "is-on" : ""} aria-pressed={mode === "backtest"} onClick={() => setMode("backtest")}>
+                Backtest (time-safe)
+              </button>
+              <button className={mode === "today" ? "is-on" : ""} aria-pressed={mode === "today"} onClick={() => setMode("today")}>
+                Today's cafés (not time-safe)
+              </button>
+            </div>
+            {mode === "backtest" && cohorts.length > 1 && (
+              <label className="field">
+                <span className="muted">Cohort</span>
+                <select value={cohort} onChange={(e) => setCohort(e.target.value)}>
+                  {cohorts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
-          {mode === "backtest" && cohorts.length > 1 && (
-            <label className="field">
-              <span className="muted">Cohort</span>
-              <select value={cohort} onChange={(e) => setCohort(e.target.value)}>
-                {cohorts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-        </div>
-      </section>
+        }
+      >
+        <p className="muted page-top__lede">
+          {mode === "backtest"
+            ? "Each café is predicted using only data published before it opened, then compared with what happened."
+            : "Every café open today, scored with today's data. A bigger sample, but not a fair test of prediction."}
+        </p>
+      </PageHead>
 
       {error && <div className="alert alert--inline">{error}</div>}
       {loading && (
@@ -155,7 +158,6 @@ function TimeSafe({ result, region, dark }: { result: BacktestResult; region: Re
   const judged = s.status_counts.closed + s.status_counts.survived;
   const discovered = Object.values(result.opening_checks).reduce((a, b) => a + b, 0);
   const excluded = (result.opening_checks.older ?? 0) + (result.opening_checks.remapped ?? 0);
-  const maxScore = Math.max(...result.rows.map((r) => r.predicted_score), 1);
   const hasGoogle = result.outcome_sources.includes("google");
   const churn = result.ladder.find((l) => l.outcome === "site_churn");
   const reviews = result.ladder.find((l) => l.outcome === "reviews_per_month");
@@ -195,6 +197,7 @@ function TimeSafe({ result, region, dark }: { result: BacktestResult; region: Re
   return (
     <>
       <div className="verdict card">
+        <Kicker text="findings/" />
         <h2>What it shows so far</h2>
         <ul>
           {s.status_counts.closed === 0 ? (
@@ -224,7 +227,7 @@ function TimeSafe({ result, region, dark }: { result: BacktestResult; region: Re
         </ul>
       </div>
 
-      <div className="kpis">
+      <div className="card kpis">
         <Tile label="Real openings scored" value={String(result.accuracy.n)}
           note={discovered ? `of ${discovered} first mapped · ${excluded} older or re-mapped excluded` : `from the ${result.cohort} cohort`} />
         <Tile label={`Closed within ${months} months`} value={`${s.status_counts.closed} of ${judged}`}
@@ -249,86 +252,22 @@ function TimeSafe({ result, region, dark }: { result: BacktestResult; region: Re
           </div>
         </section>
         <section className="card bt-side">
+          <Kicker text="opening_check/" />
           <h2>Opening check</h2>
           <p className="muted small">
             "First mapped" often means an old café mapped for the first time, so each one is checked against Foursquare,
             ASIC and the map's own history.
           </p>
-          <ul className="counts">
-            {Object.entries(result.opening_checks).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
-              <li key={k}>
-                <span>{OPENING_LABELS[k] ?? k}</span>
-                <strong>{v}</strong>
-              </li>
-            ))}
-          </ul>
+          <OpeningChecks checks={result.opening_checks} />
+          <Kicker text="closures.by_third()" />
           <h2>Closures by predicted third</h2>
-          <ThirdsTable title="Ranked by the model" rows={s.by_third} />
-          <ThirdsTable title="Ranked by foot traffic only" rows={s.baseline_by_third} />
+          <ThirdsCompare model={s.by_third} baseline={s.baseline_by_third} />
         </section>
       </div>
 
       <Ladders ladder={result.ladder} />
 
-      <section className="card bt-table-card">
-        <div className="card-head">
-          <h2>Predicted vs what happened</h2>
-          <span className="muted card-head__note">Click a row for its evidence · predictions use data up to the date shown</span>
-        </div>
-        <div className="table-scroll">
-          <table className="bt-table">
-            <thead>
-              <tr>
-                <th scope="col" className="num">#</th>
-                <th scope="col">Café</th>
-                <th scope="col">Opened</th>
-                <th scope="col">Predicted, first {result.score_months} months</th>
-                <th scope="col">{months}-month outcome</th>
-                <th scope="col">Today</th>
-                <th scope="col" className="num">Closures at spot</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.rows.map((r) => {
-                const id = r.osm_id || r.name;
-                return (
-                  <Fragment key={id}>
-                    <tr
-                      id={`bt-row-${id}`}
-                      className={`${selected === id ? "is-selected" : ""} is-clickable`}
-                      onClick={() => select(id)}
-                      aria-expanded={expanded === id}
-                    >
-                      <td className="num">{r.predicted_rank}</td>
-                      <td>
-                        <strong>{r.name}</strong>
-                        {r.opening_check && <span className="tag">{r.opening_check}</span>}
-                      </td>
-                      <td>{dateShort(r.opened)}</td>
-                      <td>
-                        <span className="inline-bar">
-                          <span style={{ width: `${(r.predicted_score / maxScore) * 100}%` }} />
-                        </span>
-                        <span className="num">{money(r.predicted_score)}</span>
-                      </td>
-                      <td>{r.actual.horizon ? <StatusChip status={r.actual.horizon.status} months={months} /> : "–"}</td>
-                      <td>{r.actual.still_open === null ? "?" : r.actual.still_open ? "Trading" : "Closed"}</td>
-                      <td className="num">{r.actual.horizon?.site_closures ?? "–"}</td>
-                    </tr>
-                    {expanded === id && (
-                      <tr className="evidence-row">
-                        <td colSpan={7}>
-                          <Evidence row={r} />
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <OutcomeTable result={result} months={months} selected={selected} expanded={expanded} onSelect={select} />
 
       <div className="bt-grid bt-grid--even">
         <Caveats caveats={result.caveats} />
@@ -360,88 +299,259 @@ const OPENING_LABELS: Record<string, string> = {
   remapped: "Already on the map (excluded)",
 };
 
-function Evidence({ row: r }: { row: BacktestRow }) {
-  const h = r.actual.horizon;
+type Filter = HorizonStatus | "all";
+const FILTERS: { id: Filter; label: (months: number) => string }[] = [
+  { id: "all", label: () => "All" },
+  { id: "survived", label: (m) => `Survived ${m} mo` },
+  { id: "closed", label: () => "Closed" },
+  { id: "unknown", label: () => "Can't tell" },
+  { id: "censored", label: () => "Too new" },
+];
+
+/**
+ * Every scored opening, grouped by where the model ranked it (top, middle and bottom
+ * third), so the question "did the top third do better?" reads straight off the table.
+ * Filter by outcome; a row opens to its evidence.
+ */
+function OutcomeTable({ result, months, selected, expanded, onSelect }: {
+  result: BacktestResult; months: number; selected: string | null; expanded: string | null; onSelect: (id: string) => void;
+}) {
+  const [filter, setFilter] = useState<Filter>("all");
+  const rows = useMemo(() => [...result.rows].sort((a, b) => a.predicted_rank - b.predicted_rank), [result]);
+  const statusOf = (r: BacktestRow): HorizonStatus => r.actual.horizon?.status ?? "unknown";
+  const counts = (st: Filter) => (st === "all" ? rows.length : rows.filter((r) => statusOf(r) === st).length);
+  const maxScore = Math.max(...rows.map((r) => r.predicted_score), 1);
+  const third = Math.ceil(rows.length / 3);
+  const groups = [
+    { id: "top_third", title: "Top third", rows: rows.slice(0, third) },
+    { id: "middle_third", title: "Middle third", rows: rows.slice(third, third * 2) },
+    { id: "bottom_third", title: "Bottom third", rows: rows.slice(third * 2) },
+  ].filter((g) => g.rows.length);
+
   return (
-    <div className="evidence">
-      <dl>
-        <dt>Opening</dt>
-        <dd>
-          {r.opened_note}
-          {r.opening_detail && <> · {r.opening_check}: {r.opening_detail}</>}
-        </dd>
-        <dt>Predicted with</dt>
-        <dd>data published up to {r.data_cutoff ?? r.as_of} (as of {r.as_of})</dd>
-        {h && (
-          <>
-            <dt>Outcome by {dateShort(h.horizon)}</dt>
-            <dd>
-              {h.detail}
-              {h.failure && <> · {h.failure === "operator" ? "operator failure (another café took over)" : h.failure === "site" ? "site failure" : "type unknown"}</>}
-            </dd>
-            <dt>Same spot</dt>
-            <dd>
-              {h.site_closures === 0
-                ? "no café closures here since 2019"
-                : `${h.site_closures} café closure${h.site_closures > 1 ? "s" : ""} here since 2019 (${h.site_closures_before} before this one opened)`}
-            </dd>
-          </>
-        )}
-      </dl>
-      {r.actual.evidence.length > 0 && (
-        <table className="evidence-table">
-          <caption className="muted small">Still trading today? Each source's vote, weighted by strength and age</caption>
+    <section className="card bt-table-card">
+      <div className="card-head card-head--split">
+        <div>
+          <Kicker text="predicted.vs(actual)" />
+          <h2>Predicted vs what happened</h2>
+          <span className="muted small">
+            Ranked by the model with data up to each opening; open a row for its evidence.
+          </span>
+        </div>
+        <div className="segmented" role="group" aria-label="Filter by outcome">
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              className={filter === f.id ? "is-on" : ""}
+              aria-pressed={filter === f.id}
+              disabled={f.id !== "all" && counts(f.id) === 0}
+              onClick={() => setFilter(f.id)}
+            >
+              {f.label(months)} <span className="seg-count">{counts(f.id)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="table-scroll">
+        <table className="bt-table outcome-table">
           <thead>
             <tr>
-              <th scope="col">Source</th>
-              <th scope="col">Says</th>
-              <th scope="col" className="num">Weight</th>
-              <th scope="col">Detail</th>
+              <th scope="col">Rank</th>
+              <th scope="col">Café</th>
+              <th scope="col">Opened</th>
+              <th scope="col">Predicted, first {result.score_months} months</th>
+              <th scope="col">{months}-month outcome</th>
+              <th scope="col">Today</th>
+              <th scope="col" className="num">Closures at spot</th>
             </tr>
           </thead>
-          <tbody>
-            {r.actual.evidence.map((e, i) => (
-              <tr key={i}>
-                <td>{SOURCE_NAMES[e.source] ?? e.source}</td>
-                <td>{e.open ? "open" : "closed"}</td>
-                <td className="num">{e.weight.toFixed(2)}</td>
-                <td>
-                  {e.detail}
-                  {e.as_of && <span className="muted"> · {e.as_of}</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
+          {groups.map((g) => {
+            const shown = g.rows.filter((r) => filter === "all" || statusOf(r) === filter);
+            const closed = g.rows.filter((r) => statusOf(r) === "closed").length;
+            const judged = g.rows.filter((r) => ["closed", "survived"].includes(statusOf(r))).length;
+            const spot = g.rows.reduce((a, r) => a + (r.actual.horizon?.site_closures ?? 0), 0) / g.rows.length;
+            return (
+              <tbody key={g.id}>
+                <tr className="group-row">
+                  <td colSpan={7}>
+                    <span className="mono group-row__code">{g.id}/</span>
+                    <strong>{g.title}</strong>
+                    <span className="group-row__stats">
+                      <span>ranks {g.rows[0].predicted_rank}–{g.rows[g.rows.length - 1].predicted_rank}</span>
+                      <span>{closed} of {judged} judged closed</span>
+                      <span>{spot.toFixed(2)} closures per spot</span>
+                    </span>
+                  </td>
+                </tr>
+                {shown.map((r) => {
+                  const id = r.osm_id || r.name;
+                  return (
+                    <Fragment key={id}>
+                      <tr
+                        id={`bt-row-${id}`}
+                        className={`${selected === id ? "is-selected" : ""} is-clickable`}
+                        onClick={() => onSelect(id)}
+                        aria-expanded={expanded === id}
+                      >
+                        <td className="mono outcome-table__rank">{String(r.predicted_rank).padStart(2, "0")}</td>
+                        <td>
+                          <span className="outcome-table__name">{r.name}</span>
+                          {r.opening_check && <span className="tag">{r.opening_check}</span>}
+                        </td>
+                        <td className="muted">{dateShort(r.opened)}</td>
+                        <td>
+                          <span className="score-bar">
+                            <span className="num">{money(r.predicted_score)}</span>
+                            <i aria-hidden><b style={{ width: `${(r.predicted_score / maxScore) * 100}%` }} /></i>
+                          </span>
+                        </td>
+                        <td>{r.actual.horizon ? <StatusChip status={r.actual.horizon.status} months={months} /> : "–"}</td>
+                        <td>{r.actual.still_open === null ? <span className="muted">?</span> : r.actual.still_open ? "Trading" : "Closed"}</td>
+                        <td className="num">{r.actual.horizon?.site_closures ?? "–"}</td>
+                      </tr>
+                      {expanded === id && (
+                        <tr className="evidence-row">
+                          <td colSpan={7}>
+                            <Evidence row={r} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+                {shown.length === 0 && (
+                  <tr className="group-row group-row--empty">
+                    <td colSpan={7} className="muted small">None in this third.</td>
+                  </tr>
+                )}
+              </tbody>
+            );
+          })}
         </table>
+      </div>
+    </section>
+  );
+}
+
+function Evidence({ row: r }: { row: BacktestRow }) {
+  const h = r.actual.horizon;
+  const facts: [string, ReactNode][] = [
+    ["opening", <>{r.opened_note}{r.opening_detail && <> · {r.opening_check}: {r.opening_detail}</>}</>],
+    ["predicted_with", <>data published up to {r.data_cutoff ?? r.as_of} (as of {r.as_of})</>],
+  ];
+  if (h) {
+    facts.push([`outcome_by_${h.horizon.slice(0, 7)}`, <>
+      {h.detail}
+      {h.failure && <> · {h.failure === "operator" ? "operator failure (another café took over)" : h.failure === "site" ? "site failure" : "type unknown"}</>}
+    </>]);
+    facts.push(["same_spot", h.site_closures === 0
+      ? "no café closures here since 2019"
+      : `${h.site_closures} café closure${h.site_closures > 1 ? "s" : ""} here since 2019 (${h.site_closures_before} before this one opened)`]);
+  }
+  const maxWeight = Math.max(...r.actual.evidence.map((e) => e.weight), 1);
+  return (
+    <div className="evidence">
+      <dl className="evidence__facts">
+        {facts.map(([k, v]) => (
+          <div key={k}>
+            <dt className="mono">{k}/</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+      </dl>
+      {r.actual.evidence.length > 0 && (
+        <div className="evidence__votes">
+          <span className="mono evidence__kicker">still_trading/ · each source's vote, weighted by strength and age</span>
+          <ul>
+            {r.actual.evidence.map((e, i) => (
+              <li key={i}>
+                <span className="evidence__source">{SOURCE_NAMES[e.source] ?? e.source}</span>
+                <span className={`evidence__says ${e.open ? "is-open" : "is-closed"}`}>{e.open ? "open" : "closed"}</span>
+                <span className="evidence__weight">
+                  <i aria-hidden><b style={{ width: `${(e.weight / maxWeight) * 100}%` }} /></i>
+                  <span className="num">{e.weight.toFixed(2)}</span>
+                </span>
+                <span className="evidence__detail muted">
+                  {e.detail}
+                  {e.as_of && <> · {e.as_of}</>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );
 }
 
-function ThirdsTable({ title, rows }: { title: string; rows: ThirdRow[] }) {
+/** How the first-mapped openings were checked: one proportion bar, then the counts. */
+function OpeningChecks({ checks }: { checks: Record<string, number> }) {
+  const entries = Object.entries(checks).sort((a, b) => b[1] - a[1]);
+  const total = entries.reduce((a, [, v]) => a + v, 0) || 1;
+  const kept = (k: string) => k === "new" || k === "unverified";
   return (
-    <table className="mini-table">
-      <caption>{title}</caption>
-      <thead>
-        <tr>
-          <th scope="col">Third</th>
-          <th scope="col" className="num">Closed / judged</th>
-          <th scope="col" className="num">Closures at spot</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((t) => (
-          <tr key={t.third}>
-            <td>{t.third}</td>
-            <td className="num">
-              {t.closed} / {t.judged}
-              {t.closure_rate !== null && t.closed > 0 && <span className="muted"> ({pct(t.closure_rate)})</span>}
-            </td>
-            <td className="num">{t.mean_site_closures === null ? "–" : t.mean_site_closures.toFixed(2)}</td>
-          </tr>
+    <div className="checks">
+      <span className="checks__bar" aria-hidden>
+        {entries.map(([k, v]) => (
+          <i key={k} className={kept(k) ? "is-kept" : ""} style={{ flexGrow: v / total }} title={`${OPENING_LABELS[k] ?? k}: ${v}`} />
         ))}
-      </tbody>
-    </table>
+      </span>
+      <ul className="counts">
+        {entries.map(([k, v]) => (
+          <li key={k}>
+            <span>
+              <i className={`checks__key ${kept(k) ? "is-kept" : ""}`} aria-hidden />
+              {OPENING_LABELS[k] ?? k}
+            </span>
+            <strong className="num">{v}</strong>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Closures at the spot, by predicted third, for the model against foot traffic alone:
+ * paired bars per third, so a ranking that steers away from troubled spots shows as a
+ * shorter bar in the top third.
+ */
+function ThirdsCompare({ model, baseline }: { model: ThirdRow[]; baseline: ThirdRow[] }) {
+  const all = [...model, ...baseline].map((t) => t.mean_site_closures ?? 0);
+  const max = Math.max(...all, 0.01);
+  const w = (v: number | null) => `${((v ?? 0) / max) * 100}%`;
+  return (
+    <div className="thirds">
+      <div className="thirds__legend small">
+        <span><i className="is-model" /> Model</span>
+        <span><i className="is-base" /> Foot traffic only</span>
+      </div>
+      {model.map((t, i) => {
+        const b = baseline[i];
+        return (
+          <div key={t.third} className="thirds__row">
+            <span className="thirds__label">{capitalise(t.third)}</span>
+            <span className="thirds__bars">
+              <span className="thirds__bar">
+                <i className="is-model" style={{ width: w(t.mean_site_closures) }} />
+                <span className="num">{t.mean_site_closures === null ? "–" : t.mean_site_closures.toFixed(2)}</span>
+              </span>
+              {b && (
+                <span className="thirds__bar">
+                  <i className="is-base" style={{ width: w(b.mean_site_closures) }} />
+                  <span className="num">{b.mean_site_closures === null ? "–" : b.mean_site_closures.toFixed(2)}</span>
+                </span>
+              )}
+            </span>
+            <span className="thirds__closed mono">
+              {t.closed}/{t.judged}
+              {b && <><br />{b.closed}/{b.judged}</>}
+            </span>
+          </div>
+        );
+      })}
+      <p className="muted small">Bars: café closures at the spot since 2019, per opening. Right: closed of judged.</p>
+    </div>
   );
 }
 
@@ -486,7 +596,7 @@ function Today({ result, region, dark }: { result: CrossSectionResult; region: R
       <div className="alert alert--inline alert--warn">
         <strong>Not time-safe.</strong> {capitalise(result.caveats[0].replace(/^Not time-safe:\s*/i, ""))}
       </div>
-      <div className="kpis">
+      <div className="card kpis">
         <Tile label="Independent cafés on today's map" value={String(result.n)} note={`scored with data as of ${result.as_of}`} />
         <Tile label="Outcomes compared" value={`${available.length} of ${result.outcomes.length}`}
           note={result.outcomes.filter((o) => !o.available).map((o) => `${o.label}: ${o.note}`).join(" · ") || "all available"} />
@@ -507,6 +617,7 @@ function Today({ result, region, dark }: { result: CrossSectionResult; region: R
           </div>
         </section>
         <section className="card bt-side">
+          <Kicker text="rank.top()" />
           <h2>Top predicted</h2>
           <div className="table-scroll table-scroll--tall">
             <table className="bt-table bt-table--compact">
@@ -551,42 +662,26 @@ function Today({ result, region, dark }: { result: CrossSectionResult; region: R
 // --- Shared ------------------------------------------------------------------------------
 
 function Ladders({ ladder }: { ladder: OutcomeComparison[] }) {
-  const available = ladder.filter((o) => o.available);
-  const missing = ladder.filter((o) => !o.available);
   return (
     <section className="card ladders">
       <div className="card-head">
+        <Kicker text="layers.compare()" />
         <h2>Which layers help?</h2>
         <span className="muted card-head__note">
-          Each row switches on one more model layer. Higher is better; the bar is a 90% interval.
+          Each row switches on one more model layer, starting from plain foot traffic. Pick an outcome to see how the
+          ranking holds up against it.
         </span>
       </div>
-      <div className="ladder-grid-wrap">
-        {available.map((o) => (
-          <div key={o.outcome} className="ladder-panel">
-            <LadderChart comparison={o} />
-            <p className="ladder-verdict">{ladderVerdict(o)}</p>
-          </div>
-        ))}
-      </div>
-      {missing.length > 0 && (
-        <ul className="missing muted small">
-          {missing.map((o) => (
-            <li key={o.outcome}>
-              {o.label}: not compared ({o.note})
-            </li>
-          ))}
-        </ul>
-      )}
+      <LadderExplorer ladder={ladder} />
     </section>
   );
 }
 
 function Tile({ label, value, note }: { label: string; value: string; note: string }) {
   return (
-    <div className="tile card">
+    <div className="tile">
       <span className="tile__label">{label}</span>
-      <span className="tile__value">{value}</span>
+      <CountUpText className="tile__value" text={value} />
       <span className="tile__note muted">{note}</span>
     </div>
   );
@@ -596,6 +691,7 @@ function Caveats({ caveats }: { caveats: string[] }) {
   if (!caveats.length) return null;
   return (
     <section className="card bt-notes">
+      <Kicker text="caveats/" />
       <h2>Caveats</h2>
       <ul className="caveats">
         {caveats.map((c, i) => (

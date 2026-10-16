@@ -1,13 +1,16 @@
 import { money, pct, shortMonth } from "../lib/format";
-import { MAX_SITES, siteColor } from "../lib/theme";
+import { MAX_SITES } from "../lib/theme";
 import type { CandidateSite, SimulationResult } from "../lib/types";
+import { AnimatedNumber } from "./AnimatedNumber";
+import { SiteKey } from "./SiteKey";
 import { IconPin, IconX } from "./Icons";
 
 interface Props {
   sites: CandidateSite[];
   result: SimulationResult | null;
-  dark: boolean;
   selectedId: string | null;
+  hoverId?: string | null;
+  onHover?: (id: string | null) => void;
   onSelect: (id: string) => void;
   onRename: (id: string, label: string) => void;
   onRemove: (id: string) => void;
@@ -19,7 +22,7 @@ interface Props {
  * Candidate sites as cards: 36-month revenue, and its P10–P90 range drawn on one scale
  * shared by every card, so the ranges compare at a glance. The selected card is inverted.
  */
-export function SiteCards({ sites, result, dark, selectedId, onSelect, onRename, onRemove, onDemo, onClear }: Props) {
+export function SiteCards({ sites, result, selectedId, hoverId, onHover, onSelect, onRename, onRemove, onDemo, onClear }: Props) {
   if (sites.length === 0) {
     return (
       <div className="empty hatch">
@@ -50,14 +53,22 @@ export function SiteCards({ sites, result, dark, selectedId, onSelect, onRename,
           const rank = rankOf.get(s.id);
           const on = s.id === selectedId;
           return (
-            <li key={s.id} className={`site-card ${on ? "is-selected" : ""}`} onClick={() => onSelect(s.id)}>
+            <li
+              key={s.id}
+              className={`site-card ${on ? "is-selected" : ""} ${s.id === hoverId ? "is-hover" : ""}`}
+              onClick={() => onSelect(s.id)}
+              onMouseEnter={() => onHover?.(s.id)}
+              onMouseLeave={() => onHover?.(null)}
+            >
               <div className="site-card__meta">
                 <span>Site {s.slot + 1}</span>
                 <span>{rank ? `Rank ${rank} of ${sites.length}` : "–"}</span>
                 <span className="num">{odds ? `${money(odds.total_revenue.p10)}–${money(odds.total_revenue.p90)}` : ""}</span>
               </div>
               <div className="site-card__main">
-                <span className="site-card__value">{sim ? money(sim.total_revenue) : "…"}</span>
+                <span className="site-card__value">
+                  {sim ? <AnimatedNumber value={sim.total_revenue} from={0} format={money} /> : <span className="skeleton skeleton--value" />}
+                </span>
                 <span className="site-card__range" aria-hidden>
                   {odds && sim ? (
                     <>
@@ -79,9 +90,7 @@ export function SiteCards({ sites, result, dark, selectedId, onSelect, onRename,
                 </span>
               </div>
               <div className="site-card__foot">
-                <span className="site-key site-key--small" style={{ background: siteColor(s.slot, dark) }}>
-                  {s.slot + 1}
-                </span>
+                <SiteKey slot={s.slot} selected={on} />
                 <input
                   className="site-name"
                   value={s.label}

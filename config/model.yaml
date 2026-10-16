@@ -147,3 +147,7 @@ search:
   shortlist: 12
   min_separation_m: 150
   results: 5
+  # Region-wide opportunity map: the quick score on a hex grid over the whole region,
+  # skipping cells with no residents or workers nearby (parks, water, rail yards).
+  heatmap_spacing_m: 250
+  heatmap_near_people_m: 450

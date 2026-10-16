@@ -2,6 +2,7 @@ import { LineChart } from "echarts/charts";
 import { GridComponent, LegendComponent, MarkLineComponent, TooltipComponent } from "echarts/components";
 import * as echarts from "echarts/core";
 import { SVGRenderer } from "echarts/renderers";
+import type React from "react";
 import { useEffect, useRef } from "react";
 
 echarts.use([LineChart, GridComponent, LegendComponent, MarkLineComponent, TooltipComponent, SVGRenderer]);
@@ -9,7 +10,10 @@ echarts.use([LineChart, GridComponent, LegendComponent, MarkLineComponent, Toolt
 export type ChartOption = echarts.EChartsCoreOption;
 
 /** Mount an ECharts instance on a div, resize with it, and apply option updates. */
-export function useECharts(option: ChartOption | null) {
+export function useECharts(option: ChartOption | null): {
+  el: React.RefObject<HTMLDivElement>;
+  chart: React.MutableRefObject<echarts.ECharts | null>;
+} {
   const el = useRef<HTMLDivElement>(null);
   const chart = useRef<echarts.ECharts | null>(null);
 
@@ -30,5 +34,5 @@ export function useECharts(option: ChartOption | null) {
     if (option) chart.current?.setOption(option, { notMerge: true });
   }, [option]);
 
-  return el;
+  return { el, chart };
 }

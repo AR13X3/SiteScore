@@ -16,12 +16,33 @@ import type {
   TableStatus,
 } from "./types";
 import type { AnalystStatus } from "./analyst";
+import type { Heatmap } from "./heat";
+
+/** Every finished API call, for the status strip: which endpoint, how long, did it work. */
+export interface ApiCall {
+  endpoint: string;
+  ms: number;
+  ok: boolean;
+}
+export const API_EVENT = "sitescore:api";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
+  const t0 = performance.now();
+  const report = (ok: boolean) =>
+    window.dispatchEvent(new CustomEvent<ApiCall>(API_EVENT, {
+      detail: { endpoint: path.replace(/^\/api\//, "").split("?")[0], ms: performance.now() - t0, ok },
+    }));
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      ...init,
+      headers: { "Content-Type": "application/json", ...init?.headers },
+    });
+  } catch (e) {
+    if ((e as Error).name !== "AbortError") report(false); // a superseded search isn't a failure
+    throw e;
+  }
+  report(res.ok);
   if (!res.ok) {
     let detail = `${res.status} ${res.statusText}`;
     try {
@@ -56,6 +77,10 @@ export const api = {
     request<GeocodeHit[]>(`/api/geocode?q=${encodeURIComponent(q)}`, { signal }),
   simulate: (body: SimulateRequest) =>
     request<SimulationResult>("/api/simulate", { method: "POST", body: JSON.stringify(body) }),
+  heatmap: (businessType: string, asOf?: string | null) =>
+    request<Heatmap>(
+      `/api/heatmap?business_type=${encodeURIComponent(businessType)}${asOf ? `&as_of=${asOf}` : ""}`,
+    ),
   search: (body: SearchRequest) =>
     request<SearchResult>("/api/search", { method: "POST", body: JSON.stringify(body) }),
   cohorts: () => request<Cohort[]>("/api/backtest/cohorts"),

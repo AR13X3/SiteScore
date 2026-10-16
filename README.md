@@ -166,7 +166,7 @@ All model inputs are official or open data: ABS Census 2021 and boundaries, Tran
 
 ## About
 
-SiteScore started at **Hack48 Sydney** in October 2026 as a 48-hour build and kept growing. It's open source so that small businesses, which can't pay for location-intelligence consultants, can make the same kind of decision with the same kind of evidence.
+SiteScore is open source so that small businesses, which can't pay for location-intelligence consultants, can make the same kind of decision with the same kind of evidence.
 
 If it's useful or interesting, a ⭐ helps others find it, and [one piece of data](#help-train-sitescore) helps it get better.
 

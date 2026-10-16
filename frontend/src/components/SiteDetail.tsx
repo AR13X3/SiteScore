@@ -1,13 +1,14 @@
 import { money, pct, signedPct } from "../lib/format";
-import { siteColor } from "../lib/theme";
 import type { CandidateSite, SimulationResult } from "../lib/types";
+import type { ReactNode } from "react";
+import { AnimatedNumber } from "./AnimatedNumber";
+import { SiteKey } from "./SiteKey";
 import { IconChat, IconInfo, IconSearch, IconTrash } from "./Icons";
 
 interface Props {
   site: CandidateSite | undefined;
   result: SimulationResult | null;
   siteCount: number;
-  dark: boolean;
   loading: boolean;
   onRemove: (id: string) => void;
   onFindNearby: (site: CandidateSite) => void;
@@ -15,7 +16,7 @@ interface Props {
 }
 
 /** Everything about the selected site: numbers, why it ranks where it does, each layer. */
-export function SiteDetail({ site, result, siteCount, dark, loading, onRemove, onFindNearby, onAsk }: Props) {
+export function SiteDetail({ site, result, siteCount, loading, onRemove, onFindNearby, onAsk }: Props) {
   if (!site) {
     return (
       <div className="detail-empty hatch">
@@ -45,9 +46,7 @@ export function SiteDetail({ site, result, siteCount, dark, loading, onRemove, o
       <div className="detail__scroll">
         <header className="detail__head">
           <span className="detail__kicker">
-            <span className="site-key site-key--small" style={{ background: siteColor(site.slot, dark) }}>
-              {site.slot + 1}
-            </span>
+            <SiteKey slot={site.slot} selected />
             Site {site.slot + 1} · rank {expl.rank} of {siteCount}
           </span>
           <h2>{site.label}</h2>
@@ -57,11 +56,11 @@ export function SiteDetail({ site, result, siteCount, dark, loading, onRemove, o
         </header>
 
         <dl className="stat-grid">
-          <Stat label="Revenue, 36 months" value={money(sim.total_revenue)}
+          <Stat label="Revenue, 36 months" value={<AnimatedNumber value={sim.total_revenue} format={money} />}
             note={odds ? `${money(odds.total_revenue.p10)}–${money(odds.total_revenue.p90)}` : "range pending"} />
-          <Stat label="Profit, 36 months" value={sim.total_profit === null ? "–" : money(sim.total_profit)}
+          <Stat label="Profit, 36 months" value={sim.total_profit === null ? "–" : <AnimatedNumber value={sim.total_profit} format={money} />}
             note={odds?.total_profit ? `${money(odds.total_profit.p10)}–${money(odds.total_profit.p90)}` : "with estimated rent"} />
-          <Stat label="Mature month" value={money(sim.mature.monthly_revenue)} note="once ramped up" />
+          <Stat label="Mature month" value={<AnimatedNumber value={sim.mature.monthly_revenue} format={money} />} note="once ramped up" />
           <Stat label="Estimated rent" value={sim.mature.rent ? money(sim.mature.rent.monthly) : "–"}
             note={sim.mature.rent ? `${sim.mature.rent.index.toFixed(2)}× a typical site` : "no cost profile"} />
           {siteCount > 1 && <Stat label="Best in" value={odds ? pct(odds.prob_best) : "…"} note="of 300 scenarios" />}
@@ -118,11 +117,11 @@ export function SiteDetail({ site, result, siteCount, dark, loading, onRemove, o
         <div className="detail__totals">
           <div>
             <span className="muted small">Revenue</span>
-            <strong className="num">{money(sim.total_revenue)}</strong>
+            <AnimatedNumber className="detail__total" value={sim.total_revenue} format={money} />
           </div>
           <div>
             <span className="muted small">Profit</span>
-            <strong className="num">{sim.total_profit === null ? "–" : money(sim.total_profit)}</strong>
+            {sim.total_profit === null ? <strong>–</strong> : <AnimatedNumber className="detail__total" value={sim.total_profit} format={money} />}
           </div>
           <div>
             <span className="muted small">Loss risk</span>
@@ -148,7 +147,7 @@ export function SiteDetail({ site, result, siteCount, dark, loading, onRemove, o
   );
 }
 
-function Stat({ label, value, note }: { label: string; value: string; note: string }) {
+function Stat({ label, value, note }: { label: string; value: ReactNode; note: string }) {
   return (
     <div className="stat-cell">
       <dt>{label}</dt>

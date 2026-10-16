@@ -1,5 +1,5 @@
 import { money, pct } from "../lib/format";
-import { siteColor } from "../lib/theme";
+import { SiteKey } from "./SiteKey";
 import type { CandidateSite, Costs, SimulationResult } from "../lib/types";
 
 interface Props {
@@ -8,7 +8,6 @@ interface Props {
   onChange: (costs: Costs) => void;
   result: SimulationResult | null;
   sites: CandidateSite[];
-  dark: boolean;
 }
 
 function MoneyInput({ label, value, onChange, step = 500 }: {
@@ -33,7 +32,7 @@ function MoneyInput({ label, value, onChange, step = 500 }: {
 }
 
 /** Running costs for the profit view, and what they mean for each site. */
-export function ProfitPanel({ costs, defaults, onChange, result, sites, dark }: Props) {
+export function ProfitPanel({ costs, defaults, onChange, result, sites }: Props) {
   const set = (patch: Partial<Costs>) => onChange({ ...costs, ...patch });
   const fixed = costs.rent_per_month + costs.wages_per_month + costs.other_fixed_per_month;
   const breakEven = fixed / Math.max(0.01, 1 - costs.cogs_share);
@@ -112,9 +111,7 @@ export function ProfitPanel({ costs, defaults, onChange, result, sites, dark }: 
               return (
                 <tr key={s.site.id}>
                   <td>
-                    <span className="site-key site-key--small" style={{ background: siteColor(slotOf.get(s.site.id) ?? 0, dark) }}>
-                      {(slotOf.get(s.site.id) ?? 0) + 1}
-                    </span>
+                    <SiteKey slot={slotOf.get(s.site.id) ?? 0} />
                     <span className="profit-name">{s.site.label}</span>
                   </td>
                   <td className="num" title={siteRent.get(s.site.id)?.summary}>

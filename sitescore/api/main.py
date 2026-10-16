@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -22,6 +23,7 @@ from sitescore.api.deps import get_store
 from sitescore.config import load_business_types, load_model_config, load_region
 from sitescore.paths import FRONTEND_DIST
 from sitescore.pipeline import ensure_tables
+from sitescore.settings import get_settings
 
 log = logging.getLogger("sitescore")
 
@@ -40,6 +42,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             log.warning("No data for '%s'; loaded the demo pack (%d real rows)", r.table, r.rows)
         else:
             log.warning("No data for '%s'; generated mock (%d rows)", r.table, r.rows)
+    if get_settings().warm_heatmap:
+        threading.Thread(target=routes_search.warm_heatmap, args=(store,), daemon=True).start()
     yield
 
 
