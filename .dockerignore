@@ -1,0 +1,20 @@
+# Only what the running app needs: the code, config, demo pack and recorded analyst runs.
+.git
+.github
+.claude
+.env
+.venv
+.local
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+frontend/node_modules
+frontend/dist
+data/processed
+data/raw
+data/cache
+backtests/results
+docs
+tests
+deploy

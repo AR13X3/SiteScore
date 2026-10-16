@@ -46,3 +46,25 @@ jobs:
         run: npm test
       - name: Typecheck and build
         run: npm run build
+
+  docker:
+    name: Demo container
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the image the live demo runs
+        run: docker build -t sitescore .
+      - name: Start it and check it answers
+        run: |
+          docker run -d --name app -p 7860:7860 -e SITESCORE_WARM_EVIDENCE=0 sitescore
+          for i in $(seq 1 60); do curl -fsS localhost:7860/api/health && break; sleep 2; done
+          curl -fsS localhost:7860/ | grep -q 'id="root"'
+          curl -fsS localhost:7860/api/analyst/status | tee /dev/stderr | grep -q '"mode":"replay"'
+          curl -fsS -X POST localhost:7860/api/simulate -H 'Content-Type: application/json' \
+            -d '{"business_type":"cafe","sites":[{"id":"a","label":"a","lat":-33.815,"lon":151.0035}]}' | grep -q total_revenue
+          curl -fsS -N -X POST localhost:7860/api/analyst/chat -H 'Content-Type: application/json' \
+            -d '{"question":"How accurate is SiteScore? Should I trust it?"}' | grep -q 'event: done'
+      - name: Container log
+        if: always()
+        run: docker logs app 2>&1 | tail -40

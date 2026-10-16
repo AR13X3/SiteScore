@@ -42,9 +42,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             log.warning("No data for '%s'; loaded the demo pack (%d real rows)", r.table, r.rows)
         else:
             log.warning("No data for '%s'; generated mock (%d rows)", r.table, r.rows)
-    if get_settings().warm_heatmap:
-        threading.Thread(target=routes_search.warm_heatmap, args=(store,), daemon=True).start()
+    settings = get_settings()
+    if settings.warm_heatmap or settings.warm_evidence:
+        threading.Thread(target=_warm, args=(store, settings.warm_heatmap, settings.warm_evidence),
+                         daemon=True).start()
     yield
+
+
+def _warm(store, heatmap: bool, evidence: bool) -> None:
+    """Fill the slow caches one after the other, so the first visitors don't wait."""
+    if heatmap:
+        routes_search.warm_heatmap(store)
+    if evidence:
+        routes_backtest.warm_evidence(store)
 
 
 app = FastAPI(title="SiteScore", version=__version__, lifespan=lifespan)

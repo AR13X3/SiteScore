@@ -1596,3 +1596,26 @@ kbd {
   .cat__row--head { display: none; }
   .cat__name, .cat__source { grid-column: 1 / -1; }
 }
+
+/* Hosted demo: recorded runs and the "run it yourself" card */
+.analyst__kicker { font-size: 11px; color: var(--signal); }
+.recorded-tag {
+  align-self: flex-start; font-size: 10.5px; color: var(--text-muted); padding: 3px 8px; border-radius: 5px;
+  border: 1px dashed var(--border-strong);
+}
+.hero__demo-note .mono { color: var(--signal); font-size: 11.5px; margin-right: 4px; }
+.byok {
+  display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 14px;
+  border: 1px solid var(--border-strong); background: var(--surface);
+}
+.byok__kicker { font-size: 11px; color: var(--signal); }
+.byok h3 { font-size: 16px; font-weight: 500; letter-spacing: -0.015em; margin: 0; }
+.byok p { margin: 0; }
+.byok__steps { list-style: none; counter-reset: byok; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; border-top: 1px solid var(--border); }
+.byok__steps li {
+  counter-increment: byok; display: grid; grid-template-columns: 22px minmax(0, 1fr); column-gap: 8px; row-gap: 4px;
+  padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 12.5px;
+}
+.byok__steps li::before { content: counter(byok, decimal-leading-zero); grid-row: span 3; font: 500 10.5px/1.6 var(--mono); color: var(--signal); }
+.byok__steps li > code { justify-self: start; max-width: 100%; white-space: normal; overflow-wrap: anywhere; font-size: 11.5px; }
+.byok__actions { display: flex; flex-wrap: wrap; gap: 6px; }

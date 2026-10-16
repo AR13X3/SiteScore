@@ -7,7 +7,7 @@ import { IconArrowUpRight, IconGithub, IconMonitor, IconMoon, IconSun } from "./
 import { GridPulse } from "./components/GridPulse";
 import { Splash } from "./components/Splash";
 import { StatusStrip } from "./components/StatusStrip";
-import type { AnalystStatus } from "./lib/analyst";
+import { type AnalystStatus, analystMode } from "./lib/analyst";
 import { api } from "./lib/api";
 import { prefetchHeatmap } from "./lib/hooks";
 import { REPO_URL } from "./lib/project";
@@ -130,7 +130,7 @@ export default function App() {
     api.asOfRange().then((a) => { setRange(a); mark("range"); }).catch(fail);
     api.analystStatus()
       .then(setAnalyst)
-      .catch(() => setAnalyst({ enabled: false, model: "anthropic/claude-haiku-5.5", provider: "OpenRouter" }))
+      .catch(() => setAnalyst({ enabled: false, mode: "off", model: "anthropic/claude-haiku-5.5", provider: "OpenRouter" }))
       .finally(() => mark("analyst"));
   }, []);
 
@@ -214,7 +214,7 @@ export default function App() {
             { id: "types", label: "business_types", done: booted.types, detail: `${types.length} profiles` },
             { id: "data", label: "data", done: booted.data, detail: dataDetail },
             { id: "range", label: "as_of_range", done: booted.range, detail: range ? `${range.min.slice(0, 4)}–${range.max.slice(0, 4)}` : undefined },
-            { id: "analyst", label: "analyst", done: booted.analyst, detail: analyst?.enabled ? "ready" : "off" },
+            { id: "analyst", label: "analyst", done: booted.analyst, detail: { live: "ready", replay: "recorded runs", off: "off" }[analystMode(analyst) ?? "off"] },
           ]}
         />
       )}
@@ -224,7 +224,7 @@ export default function App() {
         open={palette}
         onClose={() => setPalette(false)}
         commands={commands}
-        onAsk={analyst?.enabled ? ask : undefined}
+        onAsk={analyst && analystMode(analyst) !== "off" ? ask : undefined}
       />
       <header className="topbar">
         <a className="topbar__brand" href="#" aria-label="SiteScore overview" onClick={(e) => { e.preventDefault(); go("home"); }}>

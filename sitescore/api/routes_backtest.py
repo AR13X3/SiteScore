@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
+import threading
 from functools import lru_cache
 from typing import Annotated
 
@@ -21,6 +23,7 @@ from sitescore.backtest.cohort import list_cohorts
 from sitescore.config import load_business_types
 from sitescore.datastore import DataStore
 
+log = logging.getLogger("sitescore")
 router = APIRouter(prefix="/api/backtest", tags=["backtest"])
 StoreDep = Annotated[DataStore, Depends(get_store)]
 
@@ -42,8 +45,23 @@ def run(req: BacktestRequest, store: StoreDep) -> BacktestResult:
         raise HTTPException(404, f"unknown business type {req.business_type!r}")
     if req.cohort != OSM_COHORT and req.cohort not in list_cohorts():
         raise HTTPException(404, f"unknown cohort {req.cohort!r}")
-    return _cached(store, req.cohort, req.business_type, _data_version(store),
-                   dt.date.today())  # noqa: DTZ011
+    # One run at a time: a visitor who arrives during the startup warm-up waits for it
+    # (then hits the cache) instead of starting the same 20-second backtest again.
+    with _lock:
+        return _cached(store, req.cohort, req.business_type, _data_version(store),
+                       dt.date.today())  # noqa: DTZ011
+
+
+_lock = threading.Lock()
+
+
+def warm_evidence(store: DataStore, business_type: str = "cafe") -> None:
+    """Run the Evidence page's default backtest in the background at startup."""
+    try:
+        with _lock:
+            _cached(store, OSM_COHORT, business_type, _data_version(store), dt.date.today())  # noqa: DTZ011
+    except Exception:  # a warm-up must never take the server down
+        log.exception("Couldn't pre-compute the backtest")
 
 
 @router.get("/cross-section", response_model=CrossSectionResult)

@@ -2,10 +2,33 @@
 
 import type { Costs, SearchResult } from "./types";
 
+/** A recorded run the hosted demo can replay (no model key needed). */
+export interface ReplayInfo {
+  question: string;
+  business_type: string;
+  recorded_on: string;
+}
+
 export interface AnalystStatus {
   enabled: boolean;
+  /** "live": a model key is set. "replay": no key, recorded runs only. "off": neither. */
+  mode?: "live" | "replay" | "off";
   model: string;
   provider: string;
+  replays?: ReplayInfo[];
+}
+
+export const analystMode = (s: AnalystStatus | null): "live" | "replay" | "off" | null =>
+  s ? (s.mode ?? (s.enabled ? "live" : "off")) : null;
+
+/** Same rule as the server (analyst/replay.py): case, punctuation and spacing don't matter. */
+export const normaliseQuestion = (q: string) =>
+  q.toLowerCase().replace(/[^\p{L}\p{N}_\s]/gu, " ").replace(/\s+/g, " ").trim();
+
+/** The recorded run for this question and business type, if there is one. */
+export function findReplay(s: AnalystStatus | null, question: string, businessType: string): ReplayInfo | undefined {
+  const key = normaliseQuestion(question);
+  return s?.replays?.find((r) => r.business_type === businessType && normaliseQuestion(r.question) === key);
 }
 
 export interface WorkspaceContext {
@@ -47,7 +70,7 @@ export type UiAction =
   | { type: "brief"; brief: Brief };
 
 export type AnalystEvent =
-  | { event: "status"; data: { model: string } }
+  | { event: "status"; data: { model: string; replay?: { recorded_on: string; model: string } } }
   | { event: "text"; data: { delta: string } }
   | { event: "step"; data: { id: string; name: string; label: string } }
   | { event: "step_done"; data: { id: string; name: string; ok: boolean; summary: string; ms: number } }
@@ -65,7 +88,12 @@ export interface Step {
 }
 
 /** An assistant answer, in the order things happened. */
-export type Part = { kind: "text"; text: string } | { kind: "steps"; steps: Step[] } | { kind: "brief"; brief: Brief };
+export type Part =
+  | { kind: "text"; text: string }
+  | { kind: "steps"; steps: Step[] }
+  | { kind: "brief"; brief: Brief }
+  /** The hosted demo can't answer this one: how to run SiteScore with your own key. */
+  | { kind: "byok"; question: string };
 
 export interface ChatMessage {
   id: string;
@@ -73,6 +101,8 @@ export interface ChatMessage {
   parts: Part[];
   error?: string;
   pending?: boolean;
+  /** Set when the answer is a recorded run being replayed. */
+  recorded?: { on: string; model: string };
 }
 
 /** Apply one streamed event to an assistant message (pure, so it can be tested). */
@@ -80,6 +110,8 @@ export function applyEvent(msg: ChatMessage, ev: AnalystEvent): ChatMessage {
   const parts = [...msg.parts];
   const last = parts[parts.length - 1];
   switch (ev.event) {
+    case "status":
+      return ev.data.replay ? { ...msg, recorded: { on: ev.data.replay.recorded_on, model: ev.data.replay.model } } : msg;
     case "text": {
       if (last?.kind === "text") parts[parts.length - 1] = { kind: "text", text: last.text + ev.data.delta };
       else if (ev.data.delta.trim()) parts.push({ kind: "text", text: ev.data.delta.trimStart() });
