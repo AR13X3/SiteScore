@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { escapeHtml, money, moneyExact, shortMonth } from "../lib/format";
-import { siteColor, token } from "../lib/theme";
+import { siteDash, siteInk, siteNumber, token } from "../lib/theme";
 import type { CandidateSite, Costs, SimulationResult } from "../lib/types";
 import { type ChartOption, useECharts } from "./useECharts";
 
@@ -13,6 +13,11 @@ interface Props {
   metric?: Metric;
   /** Running costs behind the profit figures (turns revenue bands into profit bands). */
   costs?: Costs | null;
+  /** Site to emphasise (hovered elsewhere), and who to tell when a line is hovered here. */
+  hoverId?: string | null;
+  onHover?: (id: string | null) => void;
+  /** The selected site: its line is red and solid, and only it gets the scenario band. */
+  selectedId?: string | null;
 }
 
 const DIRECT_LABEL_LIMIT = 4; // past this, end labels collide; legend + tooltip carry identity
@@ -37,7 +42,7 @@ function fitLabel(s: string, maxPx: number): string {
   return `${out.trimEnd()}…`;
 }
 
-export function RevenueChart({ result, sites, dark, metric = "revenue", costs }: Props) {
+export function RevenueChart({ result, sites, dark, metric = "revenue", costs, hoverId = null, onHover, selectedId = null }: Props) {
   const [width, setWidth] = useState(800);
   const profit = metric === "profit" && !!costs;
   const option = useMemo<ChartOption>(() => {
@@ -51,6 +56,7 @@ export function RevenueChart({ result, sites, dark, metric = "revenue", costs }:
     const metricOf = (siteId: string) => (revenue: number) =>
       profit ? revenue * margin - (fixedOf.get(siteId) ?? 0) : revenue;
     const slotOf = new Map(sites.map((s) => [s.id, s.slot]));
+    const nameOf = (s: (typeof result.sites)[number]) => `${siteNumber(slotOf.get(s.site.id) ?? 0)} ${s.site.label || s.site.id}`;
     const months = result.sites[0]?.months.map((m) => m.month) ?? [];
     const text = token("--text-secondary");
     const muted = token("--text-muted");
@@ -67,9 +73,7 @@ export function RevenueChart({ result, sites, dark, metric = "revenue", costs }:
     const span = Math.max(...all, 0) - Math.min(...all, 0) || 1;
     const collide = ends.some((v, i) => i > 0 && ((v - ends[i - 1]) / span) * (CHART_PLOT_PX) < LABEL_GAP_PX);
     const labelEnds = result.sites.length <= DIRECT_LABEL_LIMIT && maxLabelPx >= 70 && !collide;
-    const endLabels = new Map(
-      result.sites.map((s) => [s.site.label || s.site.id, fitLabel(s.site.label || s.site.id, maxLabelPx)]),
-    );
+    const endLabels = new Map(result.sites.map((s) => [nameOf(s), fitLabel(nameOf(s), maxLabelPx)]));
     const rightPad = labelEnds ? Math.max(...[...endLabels.values()].map(textWidth)) + 28 : 16;
     const bandOf = new Map(
       result.uncertainty?.sites.map((u) => [
@@ -87,13 +91,11 @@ export function RevenueChart({ result, sites, dark, metric = "revenue", costs }:
       legend: {
         top: 0,
         left: 0,
-        data: result.sites.map((s) => s.site.label || s.site.id),
-        icon: "path://M0,4 L16,4 L16,6 L0,6 Z",
-        itemWidth: 16,
-        itemHeight: 6,
-        // The lines' end dots have a surface-coloured ring; without this the legend's
-        // thin bars inherit it and disappear.
-        itemStyle: { borderWidth: 0 },
+        data: result.sites.map(nameOf),
+        // The legend draws each line's own pattern, which is what tells sites apart.
+        itemWidth: 26,
+        itemHeight: 8,
+        itemStyle: { opacity: 0 },
         textStyle: { color: text, fontSize: 12 },
       },
       tooltip: {
@@ -137,11 +139,12 @@ export function RevenueChart({ result, sites, dark, metric = "revenue", costs }:
         splitLine: { lineStyle: { color: grid, width: 1 } },
       },
       series: [
-        // P10-P90 bands: an invisible P10 baseline plus a stacked wash up to P90.
-        ...result.sites.flatMap((s) => {
+        // The selected site's P10-P90 band: an invisible P10 baseline plus a stacked wash
+        // up to P90. One band keeps the chart readable; the table has every range.
+        ...result.sites.filter((s) => s.site.id === selectedId).flatMap((s) => {
           const band = bandOf.get(s.site.id);
           if (!band) return [];
-          const color = siteColor(slotOf.get(s.site.id) ?? 0, dark);
+          const color = siteInk(true, dark);
           // stackStrategy "all": stack on P10 even when it's negative (profit), which
           // ECharts' default same-sign stacking would put on zero instead.
           const common = {
@@ -158,21 +161,24 @@ export function RevenueChart({ result, sites, dark, metric = "revenue", costs }:
           ];
         }),
         ...result.sites.map((s) => {
-        const color = siteColor(slotOf.get(s.site.id) ?? 0, dark);
+        const on = s.site.id === selectedId;
+        const color = siteInk(on, dark);
         return {
           type: "line",
           id: s.site.id,
-          z: 3,
-          name: s.site.label || s.site.id,
+          z: on ? 4 : 3,
+          name: nameOf(s),
           data: s.months.map((m) => Math.round(profit && m.profit !== null ? m.profit : m.revenue)),
           color,
           smooth: 0.2,
-          lineStyle: { width: 2, cap: "round", join: "round" },
+          lineStyle: { width: on ? 2.5 : 1.75, cap: "round", join: "round", type: on ? "solid" : siteDash(slotOf.get(s.site.id) ?? 0) },
           symbol: "circle",
           showSymbol: true,
           symbolSize: (_: unknown, p: { dataIndex: number }) => (p.dataIndex === last ? 8 : 0),
+          triggerLineEvent: true,
           itemStyle: { color, borderColor: surface, borderWidth: 2 },
-          emphasis: { focus: "series", lineStyle: { width: 2 } },
+          emphasis: { focus: "series", lineStyle: { width: 3 } },
+          blur: { lineStyle: { opacity: 0.25 }, itemStyle: { opacity: 0.25 } },
           // In profit mode, a solid baseline at $0 separates making from losing money.
           markLine: profit && s === result.sites[0]
             ? {
@@ -192,9 +198,34 @@ export function RevenueChart({ result, sites, dark, metric = "revenue", costs }:
         }),
       ],
     };
-  }, [result, sites, dark, width, profit, costs]);
+  }, [result, sites, dark, width, profit, costs, selectedId]);
 
-  const ref = useECharts(option);
+  const { el: ref, chart } = useECharts(option);
+  const lineIds = useMemo(() => new Set(result.sites.map((s) => s.site.id)), [result]);
+  const onHoverRef = useRef(onHover);
+  onHoverRef.current = onHover;
+  useEffect(() => {
+    const c = chart.current;
+    if (!c) return;
+    const over = (p: { seriesId?: string }) => {
+      if (p.seriesId && lineIds.has(p.seriesId)) onHoverRef.current?.(p.seriesId);
+    };
+    const out = () => onHoverRef.current?.(null);
+    c.on("mouseover", over);
+    c.on("mouseout", out);
+    return () => {
+      if (c.isDisposed()) return;
+      c.off("mouseover", over);
+      c.off("mouseout", out);
+    };
+  }, [chart, lineIds]);
+  // Emphasise the hovered site's line; the others fade back.
+  useEffect(() => {
+    const c = chart.current;
+    if (!c || c.isDisposed()) return;
+    c.dispatchAction({ type: "downplay" });
+    if (hoverId && lineIds.has(hoverId)) c.dispatchAction({ type: "highlight", seriesId: hoverId });
+  }, [chart, hoverId, lineIds, option]);
   useEffect(() => {
     if (!ref.current) return;
     const el = ref.current;

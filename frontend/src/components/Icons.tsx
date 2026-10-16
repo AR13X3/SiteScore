@@ -217,3 +217,44 @@ export const IconMaximize = (p: P) => (
     <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
   </Svg>
 );
+export const IconArrowUpRight = (p: P) => (
+  <Svg {...p}>
+    <path d="M7 17L17 7M8 7h9v9" />
+  </Svg>
+);
+export const IconChevronLeft = (p: P) => (
+  <Svg {...p}>
+    <path d="M15 6l-6 6 6 6" />
+  </Svg>
+);
+export const IconChevronRight = (p: P) => (
+  <Svg {...p}>
+    <path d="M9 6l6 6-6 6" />
+  </Svg>
+);
+export const IconPlay = (p: P) => (
+  <Svg {...p}>
+    <path d="M7 5v14l11-7z" />
+  </Svg>
+);
+export const IconPause = (p: P) => (
+  <Svg {...p}>
+    <path d="M8 5v14M16 5v14" />
+  </Svg>
+);
+export const IconHex = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z" />
+  </Svg>
+);
+export const IconCommand = (p: P) => (
+  <Svg {...p}>
+    <path d="M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3z" />
+  </Svg>
+);
+export const IconKeyboard = (p: P) => (
+  <Svg {...p}>
+    <rect x="3" y="6" width="18" height="12" rx="2" />
+    <path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10" />
+  </Svg>
+);

@@ -1,9 +1,13 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, CircleMarker, MapContainer, Marker, TileLayer, Tooltip, useMap, useMapEvents } from "react-leaflet";
-import { ORDINAL_BINS, ordinalColor, siteColor, token } from "../lib/theme";
+import { money } from "../lib/format";
+import { type HeatIndex, type Heatmap, topShare } from "../lib/heat";
+import { prefersReducedMotion } from "../lib/hooks";
+import { ORDINAL_BINS, ordinalColor, siteInk, token } from "../lib/theme";
 import type { CandidateSite, GridPoint, Region, SiteSimulation, Spot, Vacancy } from "../lib/types";
+import { HexLayer } from "./HexLayer";
 
 interface Props {
   region: Region;
@@ -28,6 +32,12 @@ interface Props {
   vacancies?: Vacancy[];
   activeSpotId?: string | null;
   onSpotSelect?: (id: string) => void;
+  /** The region-wide quick score: drawn under everything when showHeat, read while dragging a pin. */
+  heat?: { heat: Heatmap; index: HeatIndex } | null;
+  showHeat?: boolean;
+  /** Site hovered anywhere in the workspace (card, chart, table), and who to tell about pin hovers. */
+  hoverId?: string | null;
+  onHover?: (id: string | null) => void;
 }
 
 // Standard OSM tiles (no key). They're desaturated in CSS so the coloured pins
@@ -124,11 +134,23 @@ function FitSites({ sites, fitKey }: { sites: CandidateSite[]; fitKey?: number }
   return null;
 }
 
-function pinIcon(color: string, n: number, selected: boolean): L.DivIcon {
-  const size = selected ? 36 : 30;
+// The same icon object for the same look: a new one would make Leaflet swap the pin's
+// element, which breaks a drag in progress (the map re-renders while a pin is dragged).
+const pinIcons = new Map<string, L.DivIcon>();
+
+function pinIcon(n: number, selected: boolean, isNew = false): L.DivIcon {
+  const key = `${n}|${selected}|${isNew}`;
+  let icon = pinIcons.get(key);
+  if (!icon) pinIcons.set(key, (icon = makePinIcon(n, selected, isNew)));
+  return icon;
+}
+
+/** A hex cell like the logo's: ink with its number, the selected one red and larger. */
+function makePinIcon(n: number, selected: boolean, isNew: boolean): L.DivIcon {
+  const size = selected ? 38 : 32;
   return L.divIcon({
-    className: `site-pin ${selected ? "is-selected" : ""}`,
-    html: `<span style="--pin:${color}">${n}</span>`,
+    className: `site-pin ${selected ? "is-selected" : ""} ${isNew ? "is-new" : ""}`,
+    html: `<span><b>${n}</b></span>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
@@ -168,6 +190,63 @@ function ringLabel(text: string): L.DivIcon {
   return L.divIcon({ className: "ring-label", html: `<span>${text}</span>`, iconSize: [0, 0] });
 }
 
+/** A catchment ring that grows out from its site when the site is selected. */
+function GrowingCircle({ center, radius, delay, pathOptions }: {
+  center: [number, number];
+  radius: number;
+  delay: number;
+  pathOptions: L.PathOptions;
+}) {
+  const ref = useRef<L.Circle>(null);
+  useEffect(() => {
+    const c = ref.current;
+    if (!c || prefersReducedMotion()) return;
+    const start = performance.now() + delay;
+    let raf = 0;
+    const tick = (t: number) => {
+      const p = Math.max(0, Math.min(1, (t - start) / 650));
+      c.setRadius(Math.max(1, radius * (1 - (1 - p) ** 3)));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    c.setRadius(1);
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      c.setRadius(radius);
+    };
+  }, [center[0], center[1], radius, delay]);
+  return <Circle ref={ref} center={center} radius={radius} interactive={false} pathOptions={pathOptions} />;
+}
+
+type DragAt = { lat: number; lon: number } | null;
+
+/**
+ * While a pin is dragged: the quick score of the corner under it, next to the pin.
+ * It listens on its own channel so only it re-renders during a drag: re-rendering the
+ * map would hand every marker its position again and snap the dragged pin back.
+ */
+function DragReadout({ channel, heat }: { channel: { current: (at: DragAt) => void }; heat: Props["heat"] }) {
+  const map = useMap();
+  const [at, setAt] = useState<DragAt>(null);
+  useEffect(() => {
+    channel.current = setAt;
+    return () => {
+      channel.current = () => {};
+    };
+  }, [channel]);
+  if (!at || !heat) return null;
+  const i = heat.index.nearest(at.lat, at.lon);
+  if (i < 0) return null;
+  const v = heat.heat.value[i];
+  const p = map.latLngToContainerPoint([at.lat, at.lon]);
+  return (
+    <div className="drag-readout" style={{ left: p.x, top: p.y }}>
+      <strong className="num">≈ {money(v)}</strong> a month
+      <span>{topShare(heat.index.percentile(v))} of the region · quick estimate</span>
+    </div>
+  );
+}
+
 /** Read what the map draws from the selected site's layer details. */
 export function overlayData(sim: SiteSimulation) {
   const layer = (key: string) => sim.mature.layers.find((l) => l.key === key)?.details ?? {};
@@ -183,6 +262,16 @@ export function overlayData(sim: SiteSimulation) {
 export function SiteMap(props: Props) {
   const { region, sites, dark, canAdd, selectedId, overlay, focus, fitKey, onAdd, onMove, onSelect } = props;
   const { finder, onFinderMove, spots = [], grid = [], vacancies = [], activeSpotId, onSpotSelect } = props;
+  const { heat, showHeat = false, hoverId = null, onHover } = props;
+  const dragChannel = useRef<(at: DragAt) => void>(() => {});
+  const markers = useRef(new Map<string, L.Marker>());
+  // New pins drop in; pins that already existed don't replay it when their icon changes.
+  const born = useRef(new Map<string, number>());
+  const now = performance.now();
+  for (const s of sites) if (!born.current.has(s.id)) born.current.set(s.id, now);
+  useEffect(() => {
+    for (const [id, m] of markers.current) m.getElement()?.classList.toggle("is-hover", id === hoverId);
+  });
   const bin = useMemo(() => gridBins(grid), [grid]);
   const [lon0, lat0, lon1, lat1] = region.bbox;
   const bounds = useMemo(
@@ -191,7 +280,7 @@ export function SiteMap(props: Props) {
   );
   const selected = sites.find((s) => s.id === selectedId);
   const data = overlay && selected ? overlayData(overlay) : null;
-  const color = selected ? siteColor(selected.slot, dark) : "";
+  const color = siteInk(true, dark); // the selected site's catchments are the red signal
   const maxShare = Math.max(0.0001, ...(data?.rivals.map((r) => r.share_of_local_demand) ?? []));
   const surface = token("--surface");
   const contextInk = token("--text-secondary");
@@ -206,6 +295,8 @@ export function SiteMap(props: Props) {
       attributionControl
     >
       <TileLayer url={TILES} attribution={ATTRIBUTION} maxZoom={19} />
+      {showHeat && heat && <HexLayer heat={heat.heat} index={heat.index} dark={dark} opacity={sites.length ? 0.55 : 0.85} />}
+      <DragReadout channel={dragChannel} heat={heat} />
       <ClickToAdd
         enabled={finder ? true : canAdd}
         onAdd={finder && onFinderMove ? onFinderMove : onAdd}
@@ -273,12 +364,12 @@ export function SiteMap(props: Props) {
 
       {data && selected && (
         <>
-          {data.rings.map((r) => (
-            <Circle
-              key={r.segment}
+          {data.rings.map((r, i) => (
+            <GrowingCircle
+              key={`${selected.id}-${r.segment}`}
               center={[selected.lat, selected.lon]}
               radius={r.radius}
-              interactive={false}
+              delay={(data.rings.length - 1 - i) * 90}
               pathOptions={{ color, weight: 1.5, opacity: 0.85, fillColor: color, fillOpacity: dark ? 0.06 : 0.05 }}
             />
           ))}
@@ -313,14 +404,25 @@ export function SiteMap(props: Props) {
       {sites.map((s) => (
         <Marker
           key={s.id}
+          ref={(m) => {
+            if (m) markers.current.set(s.id, m);
+            else markers.current.delete(s.id);
+          }}
           position={[s.lat, s.lon]}
-          icon={pinIcon(siteColor(s.slot, dark), s.slot + 1, s.id === selectedId)}
+          icon={pinIcon(s.slot + 1, s.id === selectedId, now - (born.current.get(s.id) ?? 0) < 700)}
           draggable
           zIndexOffset={s.id === selectedId ? 1000 : 0}
           eventHandlers={{
             click: () => onSelect(s.id),
+            mouseover: () => onHover?.(s.id),
+            mouseout: () => onHover?.(null),
+            drag: (e) => {
+              const p = (e.target as L.Marker).getLatLng();
+              dragChannel.current({ lat: p.lat, lon: p.lng });
+            },
             dragend: (e) => {
               const p = (e.target as L.Marker).getLatLng();
+              dragChannel.current(null);
               onMove(s.id, p.lat, p.lng);
               onSelect(s.id);
             },

@@ -126,14 +126,24 @@ export function FinderPanel(props: Props) {
                         <strong>{sp.label}</strong>
                         {sp.kind !== "Location" && <span className={`tag ${sp.former_use === "cafe" ? "tag--strong" : ""}`}>{sp.kind}</span>}
                       </div>
-                      <div className="spot__numbers">
-                        <strong>{money(value)}</strong> {profit ? "profit" : "revenue"} over 36 months
-                        {range && <span className="muted"> · {money(range[0])} to {money(range[1])}</span>}
-                      </div>
-                      <div className="muted small">
-                        {sp.prob_loss !== null && <>Chance of a loss: {pct(sp.prob_loss)}</>}
-                        {sp.rent_monthly !== null && <> · est. rent {money(sp.rent_monthly)}/month</>}
-                      </div>
+                      <dl className="spot__stats">
+                        <div className="spot__stat--main">
+                          <dt>{profit ? "Profit" : "Revenue"}, 36 mo</dt>
+                          <dd className="num">{money(value)}</dd>
+                        </div>
+                        <div>
+                          <dt>P10–P90</dt>
+                          <dd className="num">{range ? `${money(range[0])}–${money(range[1])}` : "–"}</dd>
+                        </div>
+                        <div>
+                          <dt>Loss risk</dt>
+                          <dd className="num">{sp.prob_loss === null ? "–" : pct(sp.prob_loss)}</dd>
+                        </div>
+                        <div>
+                          <dt>Rent / month</dt>
+                          <dd className="num">{sp.rent_monthly === null ? "–" : money(sp.rent_monthly)}</dd>
+                        </div>
+                      </dl>
                     </div>
                     <button className="btn btn--small" disabled={added || !canAdd} onClick={() => props.onAdd(sp)}>
                       {added ? "Added" : "Compare"}

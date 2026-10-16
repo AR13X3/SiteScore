@@ -2,18 +2,23 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { AddressSearch, shortAddress } from "../components/AddressSearch";
 import { AnalystPanel } from "../components/AnalystPanel";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { Kicker, PageHead } from "../components/PageHead";
 import { type FinderSettings, FinderPanel, round5, spotLetter } from "../components/FinderPanel";
-import { IconChat, IconInfo, IconPin, IconSliders } from "../components/Icons";
+import { AnimatedNumber } from "../components/AnimatedNumber";
+import { IconChat, IconHex, IconInfo, IconPin, IconSliders } from "../components/Icons";
+import { Assumptions } from "../components/Assumptions";
 import { ProfitPanel } from "../components/ProfitPanel";
 import { type Metric, RevenueChart } from "../components/RevenueChart";
 import { SiteCards } from "../components/SiteCards";
 import { SiteDetail } from "../components/SiteDetail";
+import { SiteKey } from "../components/SiteKey";
 import { SiteMap } from "../components/SiteMap";
 import type { AnalystStatus, UiAction, WorkspaceContext } from "../lib/analyst";
 import { api } from "../lib/api";
-import { money, parameterLabel, pct } from "../lib/format";
-import { useElapsed } from "../lib/hooks";
-import { MAX_SITES, ordinalColor, siteColor } from "../lib/theme";
+import { money, pct } from "../lib/format";
+import { heatIndex } from "../lib/heat";
+import { useElapsed, useHeatmap } from "../lib/hooks";
+import { MAX_SITES, ordinalColor, siteInk } from "../lib/theme";
 import type { CandidateSite, Costs, GeocodeHit, Region, SearchResult, SimulationResult, Spot } from "../lib/types";
 
 const DEMO_SITES: Omit<CandidateSite, "id" | "slot">[] = [
@@ -24,13 +29,15 @@ const DEMO_SITES: Omit<CandidateSite, "id" | "slot">[] = [
 
 let nextId = 1;
 const newId = () => `s${nextId++}`;
-const fmt = (v: number) => (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2));
 const monthYear = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-AU", { month: "long", year: "numeric" });
 
 function freeSlot(sites: CandidateSite[]): number {
   const used = new Set(sites.map((s) => s.slot));
   return [...Array(MAX_SITES).keys()].find((i) => !used.has(i)) ?? 0;
 }
+
+/** Things the command palette can ask the workspace to do. */
+export type WorkspaceCommand = "demo" | "find" | "heat" | "clear";
 
 /** Left column: your candidate sites, or a spot search. Right column: what you look at. */
 type ListMode = "sites" | "find";
@@ -46,11 +53,14 @@ interface Props {
   dark: boolean;
   analyst: AnalystStatus | null;
   incoming: { question: string; key: number } | null;
+  /** A site handed over from the overview map. */
+  seed: { site: { label: string; lat: number; lon: number }; key: number } | null;
+  command: { type: WorkspaceCommand; key: number } | null;
   /** Business type and as-of controls, shown in the page header. */
   controls: ReactNode;
 }
 
-export function WorkspaceView({ region, businessType, businessName, asOf, dark, analyst, incoming, controls }: Props) {
+export function WorkspaceView({ region, businessType, businessName, asOf, dark, analyst, incoming, seed, command, controls }: Props) {
   const [sites, setSites] = useState<CandidateSite[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [result, setResult] = useState<SimulationResult | null>(null);
@@ -79,6 +89,12 @@ export function WorkspaceView({ region, businessType, businessName, asOf, dark, 
   const [activeSpot, setActiveSpot] = useState<string | null>(null);
   const [addedSpots, setAddedSpots] = useState<Set<string>>(new Set());
   const searchElapsed = useElapsed(searching);
+  // One site hovered anywhere (card, pin, chart line, table row) lights up everywhere.
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  // The region-wide quick score, under the map and behind the drag readout.
+  const { heat } = useHeatmap(businessType, asOf);
+  const heatLayer = useMemo(() => (heat ? { heat, index: heatIndex(heat) } : null), [heat]);
+  const [showHeat, setShowHeat] = useState(true);
   // Questions for the analyst: from the home page, or "Ask analyst" on a site.
   const [ask, setAsk] = useState<{ question: string; key: number } | null>(null);
 
@@ -158,6 +174,15 @@ export function WorkspaceView({ region, businessType, businessName, asOf, dark, 
     setListModeState("sites");
     setPanel((p) => (p === "analyst" ? p : "details"));
   }, []);
+  useEffect(() => {
+    if (!seed) return;
+    const { lat, lon, label } = seed.site;
+    const same = sitesRef.current.find((s) => Math.abs(s.lat - lat) < 1e-5 && Math.abs(s.lon - lon) < 1e-5);
+    if (same) setSelectedId(same.id);
+    else addSite(lat, lon, label);
+    setFocus({ lat, lon, key: Date.now() });
+  }, [seed]);
+
   const addAddress = useCallback(
     (hit: GeocodeHit) => {
       addSite(hit.lat, hit.lon, shortAddress(hit.label));
@@ -196,12 +221,22 @@ export function WorkspaceView({ region, businessType, businessName, asOf, dark, 
     setAddedSpots(new Set());
   }, []);
 
+  const openFinderRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    if (!command) return;
+    if (command.type === "demo") loadDemo();
+    else if (command.type === "find") openFinderRef.current();
+    else if (command.type === "heat") setShowHeat((v) => !v);
+    else if (command.type === "clear") clear();
+  }, [command]);
+
   const openFinder = useCallback(() => {
     // Start the search area on the selected site, if there is one.
     const sel = sitesRef.current.find((s) => s.id === selectedId);
     if (sel && !search) setFinder((f) => ({ ...f, lat: sel.lat, lon: sel.lon }));
     setListMode("find");
   }, [selectedId, search, setListMode]);
+  openFinderRef.current = openFinder;
   const findNearby = useCallback((site: CandidateSite) => {
     setFinder((f) => ({ ...f, lat: site.lat, lon: site.lon, radius: 800 }));
     setSearch(null);
@@ -318,17 +353,26 @@ export function WorkspaceView({ region, businessType, businessName, asOf, dark, 
         .filter((r): r is { e: (typeof current.explanations)[number]; sim: NonNullable<typeof r.sim> } => !!r.sim)
     : [];
 
+  const allRevenue = ranked.flatMap(({ e, sim }) => {
+    const u = oddsOf.get(e.site_id);
+    return u ? [u.total_revenue.p10, u.total_revenue.p90, sim.total_revenue] : [sim.total_revenue];
+  });
+  const lo = Math.min(...allRevenue);
+  const hi = Math.max(...allRevenue);
+  const scale = (v: number) => (hi > lo ? 4 + ((v - lo) / (hi - lo)) * 92 : 50);
+
   return (
     <div className="workspace">
-      <header className="ws-head">
-        <div>
-          <span className="crumb">
-            {region.name} · {businessName}
-          </span>
-          <h1>Site selection</h1>
-        </div>
-        <div className="ws-head__controls">{controls}</div>
-      </header>
+      <PageHead
+        className="ws-top"
+        kicker={`workspace/${region.id}/${businessType}`}
+        title="Site selection"
+        aside={<div className="ws-head__controls">{controls}</div>}
+      >
+        <span className="muted small">
+          {region.name} · {businessName} · {sites.length}/{MAX_SITES} sites · Ctrl K for commands
+        </span>
+      </PageHead>
       {error && <div className="alert alert--inline">{error}</div>}
 
       <div className="ws-grid">
@@ -350,8 +394,9 @@ export function WorkspaceView({ region, businessType, businessName, asOf, dark, 
                 <SiteCards
                   sites={sites}
                   result={current}
-                  dark={dark}
                   selectedId={selectedId}
+                  hoverId={hoverId}
+                  onHover={setHoverId}
                   onSelect={showSite}
                   onRename={renameSite}
                   onRemove={removeSite}
@@ -402,6 +447,10 @@ export function WorkspaceView({ region, businessType, businessName, asOf, dark, 
               vacancies={showSearch ? search?.vacancies : undefined}
               activeSpotId={activeSpot}
               onSpotSelect={setActiveSpot}
+              heat={heatLayer}
+              showHeat={showHeat}
+              hoverId={hoverId}
+              onHover={setHoverId}
             />
           </ErrorBoundary>
           {showSearch && (
@@ -424,13 +473,11 @@ export function WorkspaceView({ region, businessType, businessName, asOf, dark, 
           {!showSearch && selectedSim && selected && (
             <div className="map-legend" aria-label="Map key for the selected site">
               <div className="map-legend__title">
-                <span className="site-key site-key--small" style={{ background: siteColor(selected.slot, dark) }}>
-                  {selected.slot + 1}
-                </span>
+                <SiteKey slot={selected.slot} selected />
                 {selected.label}
               </div>
               <div>
-                <span className="key-ring" style={{ borderColor: siteColor(selected.slot, dark) }} />
+                <span className="key-ring" style={{ borderColor: siteInk(true, dark) }} />
                 <span className="long">Walking catchments by customer type</span>
                 <span className="short">Catchments</span>
               </div>
@@ -444,6 +491,15 @@ export function WorkspaceView({ region, businessType, businessName, asOf, dark, 
                 <span className="long">Anchors (supermarkets, stations, schools)</span>
                 <span className="short">Anchors</span>
               </div>
+              {showHeat && heatLayer && (
+                <div>
+                  <span className="key-ramp">
+                    {[0, 2, 4].map((b) => <span key={b} className="key-hex" style={{ background: ordinalColor(b, dark) }} />)}
+                  </span>
+                  <span className="long">Quick score of every corner, darker is higher</span>
+                  <span className="short">Quick score</span>
+                </div>
+              )}
             </div>
           )}
           {!showSearch && sites.length === 0 && (
@@ -451,16 +507,27 @@ export function WorkspaceView({ region, businessType, businessName, asOf, dark, 
               <IconPin size={14} /> Click the map to drop a site
             </div>
           )}
-          {search && (
-            <div className="map-switch segmented" role="group" aria-label="Map shows">
-              <button className={!showSearch ? "is-on" : ""} aria-pressed={!showSearch} onClick={() => setMapLayer("sites")}>
-                Sites
-              </button>
-              <button className={showSearch ? "is-on" : ""} aria-pressed={showSearch} onClick={() => setMapLayer("search")}>
-                Search
-              </button>
-            </div>
-          )}
+          <div className="map-tools">
+            <button
+              className={`map-tool ${showHeat ? "is-on" : ""}`}
+              aria-pressed={showHeat}
+              onClick={() => setShowHeat((v) => !v)}
+              title="The quick score of every corner in the region (agents and price game off)"
+              disabled={!heatLayer}
+            >
+              {heatLayer ? <IconHex size={15} /> : <span className="spinner spinner--sm" aria-hidden />} Heat
+            </button>
+            {search && (
+              <div className="segmented" role="group" aria-label="Map shows">
+                <button className={!showSearch ? "is-on" : ""} aria-pressed={!showSearch} onClick={() => setMapLayer("sites")}>
+                  Sites
+                </button>
+                <button className={showSearch ? "is-on" : ""} aria-pressed={showSearch} onClick={() => setMapLayer("search")}>
+                  Search
+                </button>
+              </div>
+            )}
+          </div>
         </section>
 
         <aside className="col col--detail">
@@ -482,7 +549,6 @@ export function WorkspaceView({ region, businessType, businessName, asOf, dark, 
               site={selected}
               result={current}
               siteCount={sites.length}
-              dark={dark}
               loading={loading}
               onRemove={removeSite}
               onFindNearby={findNearby}
@@ -503,7 +569,7 @@ export function WorkspaceView({ region, businessType, businessName, asOf, dark, 
           {panel === "costs" && (
             <div className="col__body">
               {costs && defaultCosts ? (
-                <ProfitPanel costs={costs} defaults={defaultCosts} onChange={setCosts} result={current} sites={sites} dark={dark} />
+                <ProfitPanel costs={costs} defaults={defaultCosts} onChange={setCosts} result={current} sites={sites} />
               ) : (
                 <p className="muted">This business type has no cost profile, so only revenue is shown.</p>
               )}
@@ -517,6 +583,7 @@ export function WorkspaceView({ region, businessType, businessName, asOf, dark, 
           <section className="card chart-card">
             <div className="card-head card-head--split">
               <div>
+                <Kicker text="forecast.monthly()" />
                 <h2>Projected monthly {showProfit ? "profit" : "revenue"}</h2>
                 <span className="muted small">
                   Opens {monthYear(current.open_date)} · line: central estimate ·{" "}
@@ -538,41 +605,40 @@ export function WorkspaceView({ region, businessType, businessName, asOf, dark, 
                 </div>
               )}
             </div>
-            <RevenueChart result={current} sites={sites} dark={dark} metric={showProfit ? "profit" : "revenue"} costs={costs} />
+            <RevenueChart
+              result={current}
+              sites={sites}
+              dark={dark}
+              metric={showProfit ? "profit" : "revenue"}
+              costs={costs}
+              hoverId={hoverId}
+              onHover={setHoverId}
+              selectedId={selectedId}
+            />
             {current.uncertainty && (
-              <details className="assumptions">
-                <summary>Assumptions varied in the scenarios</summary>
-                <ul>
-                  {current.uncertainty.parameters.map((p) => (
-                    <li key={p.path}>
-                      <span>{parameterLabel(p.path)}</span>
-                      <span className="muted">
-                        {fmt(p.base)} (P10–P90: {fmt(p.p10)}–{fmt(p.p90)})
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
+              <Assumptions parameters={current.uncertainty.parameters} runs={current.uncertainty.n_runs} />
             )}
           </section>
 
           <section className="card table-card">
             <div className="card-head card-head--split">
-              <h2>Comparison</h2>
+              <div>
+                <Kicker text="sites.compare()" />
+                <h2>Comparison</h2>
+              </div>
               <span className="muted small">36 months from opening · ranges are P10–P90 of 300 scenarios</span>
             </div>
             <div className="table-scroll">
               <table className="bt-table compare-table">
                 <thead>
                   <tr>
-                    <th scope="col" className="num">#</th>
+                    <th scope="col">Rank</th>
                     <th scope="col">Site</th>
-                    <th scope="col" className="num">Revenue</th>
-                    <th scope="col" className="num">Range</th>
+                    <th scope="col">Revenue, 36 months</th>
                     <th scope="col" className="num">Profit</th>
-                    <th scope="col" className="num">Est. rent / month</th>
-                    {ranked.length > 1 && <th scope="col" className="num">Best in</th>}
-                    <th scope="col" className="num">Loss risk</th>
+                    <th scope="col" className="num">Rent / month</th>
+                    {ranked.length > 1 && <th scope="col">Best in</th>}
+                    <th scope="col">Loss risk</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -580,18 +646,38 @@ export function WorkspaceView({ region, businessType, businessName, asOf, dark, 
                     const u = oddsOf.get(e.site_id);
                     const slot = slotOf.get(e.site_id) ?? 0;
                     return (
-                      <tr key={e.site_id} className={`is-clickable ${e.site_id === selectedId ? "is-selected" : ""}`} onClick={() => showSite(e.site_id)}>
-                        <td className="num">{e.rank}</td>
-                        <td>
-                          <span className="site-key site-key--small" style={{ background: siteColor(slot, dark) }}>{slot + 1}</span>
+                      <tr
+                        key={e.site_id}
+                        className={`is-clickable ${e.site_id === selectedId ? "is-selected" : ""} ${e.site_id === hoverId ? "is-hover" : ""}`}
+                        onClick={() => showSite(e.site_id)}
+                        onMouseEnter={() => setHoverId(e.site_id)}
+                        onMouseLeave={() => setHoverId(null)}
+                      >
+                        <td className="compare__rank mono">{String(e.rank).padStart(2, "0")}</td>
+                        <td className="compare__site">
+                          <SiteKey slot={slot} selected={e.site_id === selectedId} />
                           {sim.site.label}
                         </td>
-                        <td className="num"><strong>{money(sim.total_revenue)}</strong></td>
-                        <td className="num muted">{u ? `${money(u.total_revenue.p10)}–${money(u.total_revenue.p90)}` : "…"}</td>
-                        <td className="num">{sim.total_profit === null ? "–" : money(sim.total_profit)}</td>
+                        <td className="compare__revenue">
+                          <span className="compare__revenue-top">
+                            <strong><AnimatedNumber value={sim.total_revenue} format={money} /></strong>
+                            <span className="muted small num">{u ? `${money(u.total_revenue.p10)}–${money(u.total_revenue.p90)}` : "range…"}</span>
+                          </span>
+                          <span className="range-line" aria-hidden>
+                            {u && (
+                              <i className="range-line__ci" style={{ left: `${scale(u.total_revenue.p10)}%`, width: `${scale(u.total_revenue.p90) - scale(u.total_revenue.p10)}%` }} />
+                            )}
+                            <i className="range-line__dot" style={{ left: `${scale(sim.total_revenue)}%`, background: siteInk(e.site_id === selectedId, dark) }} />
+                          </span>
+                        </td>
+                        <td className={`num ${sim.total_profit !== null && sim.total_profit < 0 ? "is-neg" : ""}`}>
+                          {sim.total_profit === null ? "–" : <AnimatedNumber value={sim.total_profit} format={money} />}
+                        </td>
                         <td className="num">{sim.mature.rent ? money(sim.mature.rent.monthly) : "–"}</td>
-                        {ranked.length > 1 && <td className="num">{u ? pct(u.prob_best) : "…"}</td>}
-                        <td className="num">{u?.prob_loss == null ? "…" : pct(u.prob_loss)}</td>
+                        {ranked.length > 1 && (
+                          <td><Meter value={u?.prob_best} /></td>
+                        )}
+                        <td><Meter value={u?.prob_loss ?? undefined} tone="signal" /></td>
                       </tr>
                     );
                   })}
@@ -602,5 +688,18 @@ export function WorkspaceView({ region, businessType, businessName, asOf, dark, 
         </div>
       )}
     </div>
+  );
+}
+
+/** A percentage with a thin bar under it: "43%" over a 43%-wide fill. */
+function Meter({ value, tone }: { value: number | undefined; tone?: "signal" }) {
+  if (value === undefined) return <span className="muted">…</span>;
+  return (
+    <span className={`meter ${tone === "signal" ? "meter--signal" : ""}`}>
+      <span className="num">{pct(value)}</span>
+      <i aria-hidden>
+        <b style={{ width: `${Math.round(value * 100)}%` }} />
+      </i>
+    </span>
   );
 }

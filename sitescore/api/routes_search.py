@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
+import threading
 from functools import lru_cache
 from typing import Annotated, Literal
 
@@ -23,10 +25,13 @@ from sitescore.model.search import (
     Candidate,
     find_spots,
     grid_candidates,
+    hex_candidates,
     in_area,
     nearest_label,
+    quick_scores,
 )
 
+log = logging.getLogger("sitescore")
 router = APIRouter(prefix="/api", tags=["search"])
 StoreDep = Annotated[DataStore, Depends(get_store)]
 
@@ -188,6 +193,58 @@ def _cached(store: DataStore, business_type: str, lat: float, lon: float, radius
                               former_use=v.former_use) for v in vacancies],
         notes=notes,
     )
+
+
+class Heatmap(BaseModel):
+    business_type: str
+    as_of: dt.date
+    spacing_m: float
+    # Parallel arrays, one entry per hex cell centre (compact: ~2,500 cells).
+    lat: list[float]
+    lon: list[float]
+    value: list[float]   # quick-score mature monthly revenue
+
+
+@router.get("/heatmap", response_model=Heatmap)
+def heatmap(store: StoreDep, business_type: str = "cafe", as_of: dt.date | None = None) -> Heatmap:
+    """The quick score over the whole region on a hex grid: where this business would do
+    well. Agents and the price game are off, as in the spot finder's first pass."""
+    if business_type not in load_business_types():
+        raise HTTPException(404, f"unknown business type {business_type!r}")
+    try:
+        return heatmap_for(store, business_type, as_of or dt.date.today())  # noqa: DTZ011
+    except NoDataAsOf as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+_heatmap_lock = threading.Lock()
+
+
+def heatmap_for(store: DataStore, business_type: str, as_of: dt.date) -> Heatmap:
+    catalog = store.root / "catalog.json"
+    version = catalog.stat().st_mtime if catalog.exists() else 0.0
+    # One at a time: the startup warm-up and a first request never score the grid twice.
+    with _heatmap_lock:
+        return _heatmap(store, business_type, as_of, version)
+
+
+@lru_cache(maxsize=8)
+def _heatmap(store: DataStore, business_type: str, as_of: dt.date, data_version: float) -> Heatmap:
+    cfg, region = load_model_config(), load_region()
+    market = get_market(store, as_of, business_type)
+    cells = hex_candidates(market, region, cfg)
+    values = quick_scores(market, cells, load_business_types()[business_type], cfg, region)
+    return Heatmap(business_type=business_type, as_of=as_of, spacing_m=cfg.search.heatmap_spacing_m,
+                   lat=[round(c.lat, 6) for c in cells], lon=[round(c.lon, 6) for c in cells],
+                   value=[round(float(v), 1) for v in values])
+
+
+def warm_heatmap(store: DataStore, business_type: str = "cafe") -> None:
+    """Score today's map in the background so the overview opens on it straight away."""
+    try:
+        heatmap_for(store, business_type, dt.date.today())  # noqa: DTZ011
+    except Exception:  # a warm-up must never take the server down
+        log.exception("Couldn't pre-compute the opportunity map")
 
 
 def _vacancies(store: DataStore, as_of: dt.date, area: Area, market) -> list[Candidate]:

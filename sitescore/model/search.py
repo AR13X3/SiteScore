@@ -24,6 +24,7 @@ from typing import Literal
 import numpy as np
 
 from sitescore.config import BusinessProfile, Calendar, ModelConfig, Region
+from sitescore.model.geo import project
 from sitescore.model.market import Market
 from sitescore.model.simulate import simulate
 from sitescore.model.site import analyse_site
@@ -89,6 +90,33 @@ def grid_candidates(area: Area, market: Market, region: Region, cfg: ModelConfig
         keep &= near
     return [Candidate(f"grid-{i}", float(glat[i]), float(glon[i]), nearest_label(market, glat[i], glon[i]),
                       "Location") for i in np.flatnonzero(keep)]
+
+
+def hex_candidates(market: Market, region: Region, cfg: ModelConfig) -> list[Candidate]:
+    """Centres of a hex grid over the region's bounding box (rows offset by half a cell),
+    minus cells with no residents or workers within reach (parks, water, rail yards)."""
+    s = cfg.search
+    lon0, lat0, lon1, lat1 = region.bbox
+    dlat = s.heatmap_spacing_m * math.sqrt(3) / 2 / 110_574
+    dlon = s.heatmap_spacing_m / (111_320 * math.cos(math.radians((lat0 + lat1) / 2)))
+    rows = np.arange(lat0, lat1 + dlat / 2, dlat)
+    glat, glon = [], []
+    for r, lat in enumerate(rows):
+        lons = np.arange(lon0 + (dlon / 2 if r % 2 else 0), lon1 + dlon / 2, dlon)
+        glat.append(np.full(len(lons), lat))
+        glon.append(lons)
+    glat, glon = np.concatenate(glat), np.concatenate(glon)
+    x, y = project(glon, glat, region.metric_crs)
+    people = [p for p in (market.residents, market.workers) if len(p)]
+    near = np.zeros(len(x), bool)
+    if people:
+        px = np.concatenate([p.x for p in people])
+        py = np.concatenate([p.y for p in people])
+        for i in range(0, len(x), 256):  # chunked: cells x people distances stay small
+            d = np.hypot(x[i:i + 256, None] - px[None, :], y[i:i + 256, None] - py[None, :])
+            near[i:i + 256] = d.min(axis=1) <= s.heatmap_near_people_m
+    return [Candidate(f"hex-{i}", float(glat[i]), float(glon[i]), "", "Location")
+            for i in np.flatnonzero(near)]
 
 
 def nearest_label(market: Market, lat: float, lon: float, within_m: float = 300) -> str:

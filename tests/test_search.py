@@ -12,7 +12,7 @@ from sitescore.api.deps import get_store
 from sitescore.api.main import app
 from sitescore.config import load_business_type, load_calendar, load_model_config, load_region
 from sitescore.model.market import build_market
-from sitescore.model.search import Area, find_spots, grid_candidates, metres, spread
+from sitescore.model.search import Area, find_spots, grid_candidates, hex_candidates, metres, spread
 from sitescore.model.simulate import simulate
 from sitescore.model.types import Site
 from sitescore.pipeline.osm_vacancies import vacancy
@@ -112,3 +112,26 @@ def test_vacancies_dont_hold_back_when_the_model_can_run(mock_store):
     from sitescore.backtest.cohort import data_ready_date
     assert mock_store.read("vacancies")["published_at"].min().date() == TODAY
     assert data_ready_date(mock_store) < dt.date(2023, 1, 1)
+
+
+def test_hex_grid_covers_the_region_where_people_are(market):
+    cells = hex_candidates(market, REGION, CFG)
+    lon0, lat0, lon1, lat1 = REGION.bbox
+    assert len(cells) > 100
+    assert all(lat0 <= c.lat <= lat1 + 0.01 and lon0 <= c.lon <= lon1 + 0.01 for c in cells)
+    # Neighbouring centres in a row sit one spacing apart.
+    row = sorted(c.lon for c in cells if c.lat == cells[0].lat)
+    gap = metres(cells[0].lat, row[0], cells[0].lat, row[1])
+    assert gap == pytest.approx(CFG.search.heatmap_spacing_m, rel=0.02)
+
+
+def test_heatmap_endpoint(client, monkeypatch):
+    from sitescore.api import routes_search
+    coarse = CFG.model_copy(update={"search": CFG.search.model_copy(update={"heatmap_spacing_m": 900})})
+    monkeypatch.setattr(routes_search, "load_model_config", lambda: coarse)
+    r = client.get("/api/heatmap", params={"business_type": "cafe", "as_of": TODAY.isoformat()})
+    assert r.status_code == 200
+    h = r.json()
+    assert h["spacing_m"] == 900 and len(h["lat"]) == len(h["lon"]) == len(h["value"]) > 0
+    assert all(v >= 0 for v in h["value"]) and max(h["value"]) > 0
+    assert client.get("/api/heatmap", params={"business_type": "nope"}).status_code == 404

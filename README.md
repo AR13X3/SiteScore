@@ -11,7 +11,7 @@ An open-source simulator that projects 36 months of revenue for any street corne
 [![License: MIT](https://img.shields.io/badge/license-MIT-1d1d1d)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-1d1d1d)](pyproject.toml)
 [![React + TypeScript](https://img.shields.io/badge/react-typescript-1d1d1d)](frontend/)
-[![Data contributions wanted](https://img.shields.io/badge/data-contributions%20wanted-b5e66c)](#help-train-sitescore)
+[![Data contributions wanted](https://img.shields.io/badge/data-contributions%20wanted-e5484d)](#help-train-sitescore)
 
 [Quick start](#quick-start) · [Help train it](#help-train-sitescore) · [How it works](#how-it-works) · [How accurate is it?](#how-accurate-is-it) · [Docs](#documentation)
 
@@ -31,6 +31,7 @@ Pick a business type and a few candidate addresses, or let it search an area for
 - **Projects 36 months.** Ramp-up, seasons, school holidays and approved developments landing on schedule, with **300 Monte Carlo scenarios** for P10–P90 ranges, the chance of each site being best and the chance of a loss.
 - **Estimates rent and profit.** Each site's rent is scaled from foot traffic and local rents, so a busy corner with a high rent can lose to a quieter, cheaper one.
 - **Explains itself.** Revenue is exactly the product of eight layers, so every gap between two sites is broken down layer by layer.
+- **Maps the whole region.** Every corner of the council is scored on a 250 m hex grid, so the hotspots show at a glance; click any of them for a full run of the model.
 - **Finds spots.** Draw a circle and it scores every corner (or only vacant shopfronts) and ranks the best by revenue or profit.
 - **Looks back in time.** Run it "as of" any date since 2022 and it sees only the data published by then.
 
@@ -39,7 +40,7 @@ And it has an **AI analyst** that does the legwork: ask a question in plain Engl
 | Ask the analyst | Compare the results |
 |---|---|
 | ![The analyst searches near Parramatta station, simulates the shortlist, puts it on the map and writes a decision brief](docs/images/analyst.png) | ![36-month revenue with P10–P90 bands, and a comparison table of revenue, profit, rent and loss risk](docs/images/results.png) |
-| It plans an investigation, calls SiteScore's own tools (spot search, 36-month simulation, catchment inspection, backtest), shows every step, and writes a downloadable decision brief. Every number it quotes comes from the model. | Revenue or profit over 36 months with uncertainty bands, plus a side-by-side table: revenue, range, profit, estimated rent, chance of being best and loss risk. |
+| It plans an investigation, calls SiteScore's own tools (spot search, 36-month simulation, catchment inspection, backtest), shows every step, and writes a downloadable decision brief. Every number it quotes comes from the model. | Revenue or profit over 36 months, with the selected site's uncertainty band, plus a side-by-side table: revenue and its range, profit, estimated rent, chance of being best and loss risk. |
 
 ## Quick start
 
@@ -166,7 +167,7 @@ All model inputs are official or open data: ABS Census 2021 and boundaries, Tran
 
 ## About
 
-SiteScore started at **Hack48 Sydney** in October 2026 as a 48-hour build and kept growing. It's open source so that small businesses, which can't pay for location-intelligence consultants, can make the same kind of decision with the same kind of evidence.
+SiteScore is open source so that small businesses, which can't pay for location-intelligence consultants, can make the same kind of decision with the same kind of evidence.
 
 If it's useful or interesting, a ⭐ helps others find it, and [one piece of data](#help-train-sitescore) helps it get better.
 

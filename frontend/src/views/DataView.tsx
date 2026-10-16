@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { IconArrowRight, IconCheck, IconGithub, IconKey, IconPlus } from "../components/Icons";
+import { IconArrowRight, IconArrowUpRight, IconCheck, IconGithub, IconKey, IconPlus } from "../components/Icons";
+import { CountUpText } from "../components/Motion";
+import { Kicker, PageHead } from "../components/PageHead";
 import { api } from "../lib/api";
 import { CONTRIBUTING_URL, ISSUES_URL, REPO_URL, repoFile } from "../lib/project";
 import type { BusinessType, Region, SourceInfo, TableStatus } from "../lib/types";
@@ -66,17 +68,16 @@ export function DataView({ region, types, tables }: Props) {
 
   return (
     <main className="page">
-      <header className="page-head">
-        <span className="crumb">Data & contributing</span>
-        <h1>Open data in, open model out.</h1>
-        <p className="muted">
+      <PageHead kicker="data.sources(open=true)" title="Open data in, open model out.">
+        <p className="muted page-top__lede">
           Every input is official or open data, dated by when it became public so the model can run "as of" any past day. Here's
           what feeds it right now, and the data that would make it better.
         </p>
-      </header>
+      </PageHead>
 
-      <section className="coverage">
-        <div className="coverage__card card">
+      <section className="card coverage">
+        <div className="coverage__card">
+          <Kicker text="regions/" />
           <h2>Regions</h2>
           <ul className="cov-list">
             {region && (
@@ -92,7 +93,8 @@ export function DataView({ region, types, tables }: Props) {
             </li>
           </ul>
         </div>
-        <div className="coverage__card card">
+        <div className="coverage__card">
+          <Kicker text="business_types/" />
           <h2>Business types</h2>
           <ul className="cov-list">
             {types.map((t) => (
@@ -109,11 +111,12 @@ export function DataView({ region, types, tables }: Props) {
             </li>
           </ul>
         </div>
-        <div className="coverage__card card">
+        <div className="coverage__card">
+          <Kicker text="model_inputs/" />
           <h2>Model inputs</h2>
           <div className="big-number">
-            {real}
-            <span>/{inputs.length || "–"}</span>
+            <CountUpText text={String(real)} />
+            <span className="big-number__of">/{inputs.length || "–"}</span>
           </div>
           <p className="muted small">
             tables on real data. Mock data stands in for anything missing, with identical columns, so the app always runs.
@@ -121,48 +124,36 @@ export function DataView({ region, types, tables }: Props) {
         </div>
       </section>
 
-      <section className="card table-card">
-        <div className="card-head">
-          <h2>What the model reads</h2>
-          <span className="muted card-head__note">Each row is visible to a prediction only once it was published.</span>
-        </div>
-        <TableList tables={inputs} />
-      </section>
-
-      <section className="card table-card">
-        <div className="card-head">
-          <h2>Outcome data (backtest only)</h2>
-          <span className="muted card-head__note">The model can never read these: they're how its predictions are scored.</span>
-        </div>
-        <TableList tables={outcomes} />
-      </section>
+      <DataCatalog inputs={inputs} outcomes={outcomes} sources={sources} />
 
       <section className="section">
         <div className="section-head">
-          <span className="crumb">Most wanted</span>
+          <Kicker text="most_wanted/" />
           <h2>Data that would make SiteScore sharper</h2>
           <p className="muted">
             Pick one, open an issue to say you're on it, and send a pull request. Small contributions count: one region file or one
             CSV of openings is a real improvement.
           </p>
         </div>
-        <div className="wanted-grid">
-          {WANTED.map((w) => (
-            <article key={w.title} className="wanted card">
+        <div className="card wanted-grid">
+          {WANTED.map((w, i) => (
+            <a key={w.title} className="wanted" href={repoFile(w.where)} target="_blank" rel="noreferrer">
               <header>
-                <h3>{w.title}</h3>
+                <span className="mono wanted__n">{String(i + 1).padStart(2, "0")}</span>
                 <span className={`tag ${w.level === "Easy" ? "tag--easy" : ""}`}>{w.level}</span>
               </header>
-              <p className="muted">{w.why}</p>
-              <a className="wanted__where" href={repoFile(w.where)} target="_blank" rel="noreferrer">
-                <code>{w.where}</code> <IconArrowRight size={14} />
-              </a>
-            </article>
+              <h3>{w.title}</h3>
+              <p>{w.why}</p>
+              <span className="wanted__where mono">
+                {w.where} <IconArrowUpRight size={14} />
+              </span>
+            </a>
           ))}
         </div>
       </section>
 
       <section className="steps-card card">
+        <Kicker text="git clone && contribute/" />
         <h2>Contribute in four steps</h2>
         <ol className="how">
           <li>
@@ -195,84 +186,146 @@ export function DataView({ region, types, tables }: Props) {
         </div>
       </section>
 
-      {sources.length > 0 && (
-        <section className="card table-card">
-          <div className="card-head">
-            <h2>Sources and licences</h2>
-          </div>
-          <div className="table-scroll">
-            <table className="bt-table">
-              <thead>
-                <tr>
-                  <th scope="col">Source</th>
-                  <th scope="col">Used for</th>
-                  <th scope="col">Licence</th>
-                  <th scope="col">Key</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sources.map((s) => (
-                  <tr key={s.id}>
-                    <td>
-                      <strong>{s.title}</strong>
-                      <span className="muted small block">{s.provider}</span>
-                    </td>
-                    <td>{s.used_for}</td>
-                    <td>{s.licence}</td>
-                    <td>
-                      {s.needs_key ? (
-                        <span className="chip">
-                          <IconKey size={13} /> {s.key_configured ? "configured" : "not set"}
-                        </span>
-                      ) : (
-                        <span className="muted">none needed</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
     </main>
   );
 }
 
-function TableList({ tables }: { tables: TableStatus[] }) {
+type CatalogTab = "inputs" | "outcomes" | "sources";
+const year = (iso: string) => new Date(`${iso}T00:00:00`).getFullYear() + new Date(`${iso}T00:00:00`).getMonth() / 12;
+
+/**
+ * Everything the app holds, in one place: what the model reads, what scores it, and
+ * where it all comes from. One tab at a time, so each list gets the room to be read.
+ */
+function DataCatalog({ inputs, outcomes, sources }: { inputs: TableStatus[]; outcomes: TableStatus[]; sources: SourceInfo[] }) {
+  const [tab, setTab] = useState<CatalogTab>("inputs");
+  const realOf = (ts: TableStatus[]) => ts.filter((t) => t.provenance === "real").length;
+  const keyed = sources.filter((x) => x.needs_key).length;
+  const tabs: { id: CatalogTab; title: string; meta: string; note: string }[] = [
+    { id: "inputs", title: "What the model reads", meta: `${inputs.length} tables · ${realOf(inputs)} real`,
+      note: "Each row is visible to a prediction only once it was published, so the model can run as of any past day." },
+    { id: "outcomes", title: "Outcome data", meta: `${outcomes.length} tables · backtest only`,
+      note: "The model can never read these: they're how its predictions are scored." },
+    { id: "sources", title: "Sources and licences", meta: `${sources.length} sources · ${keyed} need${keyed === 1 ? "s" : ""} a key`,
+      note: "Where each source comes from, what it feeds, its licence, and whether it needs an API key." },
+  ];
+  const current = tabs.find((t) => t.id === tab)!;
+  // One timeline and one row scale across both table lists, so they compare.
+  const all = [...inputs, ...outcomes];
+  const starts = all.flatMap((t) => (t.published_range ? [year(t.published_range[0])] : []));
+  const ends = all.flatMap((t) => (t.published_range ? [year(t.published_range[1])] : []));
+  const span: [number, number] = [Math.floor(Math.min(...starts, 2019)), Math.ceil(Math.max(...ends, 2026))];
+  const maxRows = Math.max(...all.map((t) => t.rows ?? 0), 1);
+
   return (
-    <div className="table-scroll">
-      <table className="bt-table">
-        <thead>
-          <tr>
-            <th scope="col">Table</th>
-            <th scope="col">Source</th>
-            <th scope="col">Status</th>
-            <th scope="col" className="num">Rows</th>
-            <th scope="col">Published</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tables.map((t) => (
-            <tr key={t.table}>
-              <td>
-                <strong>{t.table}</strong>
-                <span className="muted small block">{t.description}</span>
-              </td>
-              <td>{t.source}</td>
-              <td>
-                <span className={`prov prov--${t.provenance ?? "missing"}`} title={t.note || undefined}>
-                  <span className="prov__dot" />
-                  {t.provenance ?? "missing"}
-                </span>
-                {t.note && <span className="muted small block">{t.note}</span>}
-              </td>
-              <td className="num">{t.rows?.toLocaleString("en-AU") ?? "–"}</td>
-              <td>{range(t.published_range)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <section className="card catalog">
+      <div className="card-head">
+        <Kicker text="data.catalog()" />
+        <h2>What's in the data</h2>
+      </div>
+      <div className="tab-cells" role="tablist" aria-label="Data catalog">
+        {tabs.map((t, i) => (
+          <button key={t.id} role="tab" aria-selected={t.id === tab} className={`tab-cell ${t.id === tab ? "is-on" : ""}`} onClick={() => setTab(t.id)}>
+            <span className="tab-cell__n mono">{String(i + 1).padStart(2, "0")}</span>
+            <span className="tab-cell__label">{t.title}</span>
+            <span className="tab-cell__meta mono">{t.meta}</span>
+          </button>
+        ))}
+      </div>
+      <div className="catalog__panel" key={tab}>
+        <p className="catalog__note muted small">{current.note}</p>
+        {tab === "sources" ? (
+          <SourceRows sources={sources} />
+        ) : (
+          <TableRows tables={tab === "inputs" ? inputs : outcomes} span={span} maxRows={maxRows} />
+        )}
+      </div>
+    </section>
+  );
+}
+
+function TableRows({ tables, span, maxRows }: { tables: TableStatus[]; span: [number, number]; maxRows: number }) {
+  const x = (y: number) => ((y - span[0]) / (span[1] - span[0])) * 100;
+  const ticks = [span[0], Math.round((span[0] + span[1]) / 2), span[1]];
+  return (
+    <div className="cat" role="table" aria-label="Tables">
+      <div className="cat__row cat__row--head" role="row">
+        <span role="columnheader">Table</span>
+        <span role="columnheader">Source</span>
+        <span role="columnheader">Status</span>
+        <span role="columnheader">Rows</span>
+        <span role="columnheader" className="cat__time-head">
+          Published
+          <span className="cat__ticks" aria-hidden>
+            {ticks.map((t) => (
+              <span key={t} style={{ left: `${x(t)}%` }}>{t}</span>
+            ))}
+          </span>
+        </span>
+      </div>
+      {tables.map((t) => {
+        const r = t.published_range;
+        const a = r ? x(year(r[0])) : 0;
+        const b = r ? x(year(r[1])) : 0;
+        return (
+          <div key={t.table} className="cat__row" role="row">
+            <span role="cell" className="cat__name">
+              <strong className="mono">{t.table}</strong>
+              <span className="muted small">{t.description}</span>
+            </span>
+            <span role="cell" className="cat__source">{t.source}</span>
+            <span role="cell">
+              <span className={`prov prov--${t.provenance ?? "missing"}`} title={t.note || undefined}>
+                <span className="prov__dot" />
+                {t.provenance ?? "missing"}
+              </span>
+              {t.note && <span className="muted small block">{t.note}</span>}
+            </span>
+            <span role="cell" className="cat__rows">
+              <span className="num">{t.rows?.toLocaleString("en-AU") ?? "–"}</span>
+              <i aria-hidden><b style={{ width: `${((t.rows ?? 0) / maxRows) * 100}%` }} /></i>
+            </span>
+            <span role="cell" className="cat__time">
+              <span className="cat__track" aria-hidden>
+                {r && <i className={b - a < 1.5 ? "is-point" : ""} style={{ left: `${a}%`, width: `${Math.max(0, b - a)}%` }} />}
+              </span>
+              <span className="muted small">{range(r)}</span>
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SourceRows({ sources }: { sources: SourceInfo[] }) {
+  return (
+    <div className="cat cat--sources" role="table" aria-label="Sources and licences">
+      <div className="cat__row cat__row--head" role="row">
+        <span role="columnheader">Source</span>
+        <span role="columnheader">Used for</span>
+        <span role="columnheader">Licence</span>
+        <span role="columnheader">Key</span>
+      </div>
+      {sources.map((x) => (
+        <div key={x.id} className="cat__row" role="row">
+          <span role="cell" className="cat__name">
+            <strong>{x.title}</strong>
+            <span className="muted small">{x.provider}</span>
+          </span>
+          <span role="cell" className="cat__source">{x.used_for}</span>
+          <span role="cell"><span className="tag">{x.licence}</span></span>
+          <span role="cell">
+            {x.needs_key ? (
+              <span className="chip">
+                <IconKey size={13} /> {x.key_configured ? "configured" : "not set"}
+              </span>
+            ) : (
+              <span className="muted small">none needed</span>
+            )}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

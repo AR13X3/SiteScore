@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   IconArrowRight,
+  IconArrowUpRight,
   IconChat,
   IconChart,
   IconCheck,
@@ -9,47 +10,131 @@ import {
   IconPin,
   IconSearch,
 } from "../components/Icons";
+import { ModelEquation } from "../components/ModelEquation";
+import { StatBand } from "../components/StatBand";
+import { BlockReveal, ScrambleText, useTypewriter } from "../components/Motion";
+import { OpportunityMap, type Probe } from "../components/OpportunityMap";
 import type { AnalystStatus } from "../lib/analyst";
+import { api } from "../lib/api";
+import { heatIndex } from "../lib/heat";
+import { useHeatmap } from "../lib/hooks";
 import { CONTRIBUTING_URL, REPO_URL } from "../lib/project";
 import type { Screen } from "../lib/route";
-import type { BusinessType, Region, TableStatus } from "../lib/types";
+import type { BusinessType, Region, SimulationResult, SiteSimulation, TableStatus } from "../lib/types";
+import type { WorkspaceCommand } from "./WorkspaceView";
 
 interface Props {
   region: Region | null;
+  businessType: string;
   businessName: string;
+  onBusinessType: (id: string) => void;
   types: BusinessType[];
   tables: TableStatus[];
   analyst: AnalystStatus | null;
+  dark: boolean;
   onAsk: (question: string) => void;
+  onOpenSite: (site: { label: string; lat: number; lon: number }) => void;
+  onWorkspace: (command: WorkspaceCommand) => void;
   go: (s: Screen) => void;
 }
 
-const LAYERS = [
-  ["Demand", "Residents, workers and commuters within walking reach, weighted by when they're around."],
-  ["Demographic fit", "Local demographics against the business's customer profile: age, income, housing."],
-  ["Anchors", "Stations, supermarkets, schools and hospitals that bring people past the door."],
-  ["Competition", "A Huff gravity model over every rival, plus an 'elsewhere' option."],
-  ["Customer agents", "Thousands of simulated customers choosing by distance, price, quality and habit."],
-  ["Price response", "Nearby rivals re-price in best-response rounds after you open."],
-  ["Time", "Ramp-up, seasons, school holidays and approved developments landing on schedule."],
-  ["Uncertainty", "300 Monte Carlo scenarios give P10–P90 ranges and the chance of a loss."],
+type Action = "find" | "demo" | "why" | "ask";
+const CAPABILITIES: { icon: typeof IconSearch; code: string; title: string; text: string; cta: string; action: Action }[] = [
+  { icon: IconSearch, code: "spots.find()", title: "Find spots", cta: "Open the finder", action: "find",
+    text: "Score every corner in a circle, or only vacant shopfronts, and rank them by revenue or profit." },
+  { icon: IconPin, code: "sites.compare()", title: "Compare sites", cta: "Load 3 demo sites", action: "demo",
+    text: "Up to five candidates side by side: 36-month revenue, profit, estimated rent and chance of a loss." },
+  { icon: IconChart, code: "forecast.explain()", title: "See why", cta: "See the equation", action: "why",
+    text: "Revenue is the product of the layers above, so every gap between two sites is explained." },
+  { icon: IconChat, code: "analyst.ask()", title: "Ask the analyst", cta: "Ask a question", action: "ask",
+    text: "A language model that runs these tools for you, tests what-ifs and writes a decision brief." },
 ];
 
-const CAPABILITIES = [
-  { icon: IconSearch, title: "Find spots", text: "Score every corner in a circle, or only vacant shopfronts, and rank them by revenue or profit." },
-  { icon: IconPin, title: "Compare sites", text: "Up to five candidates side by side: 36-month revenue, profit, estimated rent and chance of a loss." },
-  { icon: IconChart, title: "See why", text: "Revenue is the product of the layers below, so every gap between two sites is explained." },
-  { icon: IconChat, title: "Ask the analyst", text: "A language model that runs these tools for you, tests what-ifs and writes a decision brief." },
-];
+/** One capability as a cell you can press: it fills with ink from the bottom when pointed at. */
+function CapCell({ c, n, onRun }: { c: (typeof CAPABILITIES)[number]; n: number; onRun: () => void }) {
+  const [replay, setReplay] = useState(0);
+  return (
+    <button className="cap" onClick={onRun} onMouseEnter={() => setReplay((r) => r + 1)}>
+      <span className="cap__top">
+        <span className="mono cap__n">{String(n).padStart(2, "0")}</span>
+        <ScrambleText className="cap__code" text={c.code} replay={replay} />
+      </span>
+      <span className="icon-tile">
+        <c.icon size={18} />
+      </span>
+      <span className="cap__title">{c.title}</span>
+      <span className="cap__text">{c.text}</span>
+      <span className="cap__go mono">
+        {c.cta} <IconArrowUpRight size={14} />
+      </span>
+    </button>
+  );
+}
 
-const compactCount = (n: number) =>
-  new Intl.NumberFormat("en-AU", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
-export function HomeView({ region, businessName, types, tables, analyst, onAsk, go }: Props) {
+/** "Near Parramatta Square": the closest named anchor, else rival, within a short walk. */
+function placeLabel(sim: SiteSimulation): string {
+  const details = (key: string) => sim.mature.layers.find((l) => l.key === key)?.details ?? {};
+  type Named = { name?: string; distance_m: number };
+  const closest = (list: Named[], within: number) =>
+    list.filter((x) => x.name && x.distance_m <= within).sort((a, b) => a.distance_m - b.distance_m)[0];
+  const near =
+    closest((details("anchors").anchors ?? []) as Named[], 300) ??
+    closest((details("competition").top_competitors ?? []) as Named[], 200);
+  return near ? `Near ${near.name}` : `${sim.site.lat.toFixed(4)}, ${sim.site.lon.toFixed(4)}`;
+}
+
+export function HomeView(props: Props) {
+  const { region, businessType, businessName, onBusinessType, types, tables, analyst, dark, onAsk, onOpenSite, onWorkspace, go } = props;
   const [q, setQ] = useState("");
-  const used = tables.filter((t) => t.model_visible);
-  const real = used.filter((t) => t.provenance === "real").length;
-  const rows = tables.filter((t) => t.provenance === "real").reduce((a, t) => a + (t.rows ?? 0), 0);
+  const askInput = useRef<HTMLInputElement>(null);
+  const { heat, error: heatError } = useHeatmap(businessType, null);
+  const index = useMemo(() => (heat ? heatIndex(heat) : null), [heat]);
+  const [probe, setProbe] = useState<Probe | null>(null);
+  const [result, setResult] = useState<{ key: number; sim: SimulationResult } | null>(null);
+  const [scoring, setScoring] = useState(false);
+  const [probeError, setProbeError] = useState<string | null>(null);
+  const seq = useRef(0);
+  const opened = useRef(false);
+
+  // Open on the CBD so the card and the equation have something to show straight away.
+  useEffect(() => {
+    if (region && !opened.current) {
+      opened.current = true;
+      setProbe({ lat: region.map.center[0], lon: region.map.center[1], key: Date.now() });
+    }
+  }, [region]);
+
+  // The full model at the probe: central estimate first (~1 s), then the 300-scenario range.
+  useEffect(() => {
+    if (!probe) return;
+    const mine = ++seq.current;
+    const live = () => mine === seq.current;
+    const body = { business_type: businessType, sites: [{ id: "probe", label: "Probe", lat: probe.lat, lon: probe.lon }] };
+    setScoring(true);
+    setProbeError(null);
+    (async () => {
+      try {
+        const base = await api.simulate(body);
+        if (!live()) return;
+        setResult({ key: probe.key, sim: base });
+        setScoring(false);
+        const full = await api.simulate({ ...body, uncertainty: true });
+        if (live()) setResult({ key: probe.key, sim: full });
+      } catch (e) {
+        if (live()) {
+          setScoring(false);
+          setProbeError((e as Error).message);
+        }
+      }
+    })();
+  }, [probe, businessType]);
+
+  const sim = result?.sim.sites[0] ?? null;
+  const odds = result?.sim.uncertainty?.sites[0];
+  const fresh = !!probe && result?.key === probe.key && !scoring;
+  const label = sim ? placeLabel(sim) : "Parramatta CBD";
+
   const b = businessName.toLowerCase();
   const examples = [
     `Best ${b} spot within 1 km of Parramatta station, ranked by profit`,
@@ -57,40 +142,84 @@ export function HomeView({ region, businessName, types, tables, analyst, onAsk, 
     "Are any vacant shopfronts near Westmead Hospital worth a look?",
   ];
   const ask = (text: string) => (text.trim() ? onAsk(text.trim()) : go("workspace"));
+  const ghost = useTypewriter(examples, !q);
+  // The ghost question scrolls like a terminal line: the newest characters stay in view.
+  const field = useRef<HTMLSpanElement>(null);
+  const [fits, setFits] = useState(60);
+  useEffect(() => {
+    const el = field.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setFits(Math.max(12, Math.floor((el.clientWidth - 70) / 8.45))));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const ghostText = ghost.text.length > fits ? `…${ghost.text.slice(-(fits - 1))}` : ghost.text;
+  const run = (a: Action) => {
+    if (a === "find" || a === "demo") onWorkspace(a);
+    else if (a === "why") document.getElementById("how")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    else {
+      askInput.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      askInput.current?.focus({ preventScroll: true });
+    }
+  };
 
   return (
     <main className="page home">
-      <section className="home-head">
-        <div className="home-head__main">
-          <span className="crumb">Open-source location intelligence</span>
-          <h1 className="home-title">Where should your next business open?</h1>
+      <section className="hero">
+        <div className="hero__copy">
+          <ScrambleText className="kicker" start="mount" text="open-source_location_intelligence/" cursor />
+          <BlockReveal className="home-title" text="Where should your next business open?" />
           <p className="home-lede">
             SiteScore simulates the customers, competitors and rent at any street corner and projects 36 months of revenue,
-            with ranges rather than a single guess. Built on official and open data, and tested against real openings.
+            with ranges rather than a single guess. Every hexagon on the map is a corner the model has already scored.
           </p>
           <form
-            className="ask-box"
+            className="ask"
             onSubmit={(e) => {
               e.preventDefault();
               ask(q);
             }}
           >
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={`Ask about a location, e.g. where to open a ${b} near…`}
-              aria-label="Ask the analyst"
-            />
-            <button className="btn btn--dark" type="submit">
-              {analyst?.enabled === false ? "Open workspace" : "Ask"} <IconArrowRight size={15} />
+            <span className="ask__prompt mono" aria-hidden>
+              ask&gt;
+            </span>
+            <span className="ask__field" ref={field}>
+              <input
+                ref={askInput}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => {
+                  // Tab takes the question being typed in the background.
+                  if (e.key === "Tab" && !q && ghost.text) {
+                    e.preventDefault();
+                    setQ(examples[ghost.line]);
+                  }
+                }}
+                aria-label="Ask the analyst about a location"
+              />
+              {!q && (
+                <span className="ask__ghost mono" aria-hidden>
+                  {ghostText}
+                  <span className="block-cursor" />
+                </span>
+              )}
+              {!q && ghost.text && (
+                <kbd className="ask__tab" aria-hidden>
+                  Tab
+                </kbd>
+              )}
+            </span>
+            <button className="ask__go" type="submit">
+              {analyst?.enabled === false ? "Open workspace" : "Ask"} <IconArrowUpRight size={16} />
             </button>
           </form>
           <ul className="example-list">
-            {examples.map((x) => (
+            {examples.map((x, i) => (
               <li key={x}>
                 <button onClick={() => ask(x)}>
-                  <span>{x}</span>
-                  <IconArrowRight size={14} />
+                  <span className="example-list__n mono">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="example-list__text">{x}</span>
+                  <IconArrowUpRight size={15} />
                 </button>
               </li>
             ))}
@@ -100,91 +229,60 @@ export function HomeView({ region, businessName, types, tables, analyst, onAsk, 
           )}
         </div>
 
-        <aside className="card coverage-card">
-          <header>
-            <span className="muted small">Coverage</span>
-            <h2>{region?.name ?? "–"}</h2>
-          </header>
-          <dl className="kv">
-            <div>
-              <dt>Business types</dt>
-              <dd>
-                {types.map((t) => (
-                  <span key={t.id} className="tag">
-                    {t.name}
-                    {t.status === "draft" ? " · draft" : ""}
-                  </span>
-                ))}
-              </dd>
-            </div>
-            <div>
-              <dt>Model inputs on real data</dt>
-              <dd className="num">{used.length ? `${real} of ${used.length}` : "–"}</dd>
-            </div>
-            <div>
-              <dt>Rows of real data</dt>
-              <dd className="num">{rows ? compactCount(rows) : "–"}</dd>
-            </div>
-            <div>
-              <dt>Horizon</dt>
-              <dd>36 months, monthly</dd>
-            </div>
-            <div>
-              <dt>Scenarios per site</dt>
-              <dd className="num">300</dd>
-            </div>
-            <div>
-              <dt>Analyst</dt>
-              <dd>{analyst ? (analyst.enabled ? analyst.model : "off (no key)") : "–"}</dd>
-            </div>
-          </dl>
-          <footer className="coverage-card__foot">
-            <button className="btn btn--small" onClick={() => go("data")}>
-              Data sources
-            </button>
-            <button className="btn btn--small btn--accent" onClick={() => go("workspace")}>
-              Open workspace <IconArrowRight size={14} />
-            </button>
-          </footer>
-        </aside>
-      </section>
-
-      <section className="cap-grid">
-        {CAPABILITIES.map((c) => (
-          <article key={c.title} className="card cap">
-            <span className="icon-tile">
-              <c.icon size={18} />
-            </span>
-            <h3>{c.title}</h3>
-            <p className="muted">{c.text}</p>
-          </article>
-        ))}
-      </section>
-
-      <section className="card model-card">
-        <div className="card-head card-head--split">
-          <div>
-            <h2>How the model works</h2>
-            <span className="muted small">Mature monthly revenue is exactly the product of these layers. Every assumption is in YAML.</span>
-          </div>
-          <button className="btn btn--small" onClick={() => go("workspace")}>
-            Try it <IconArrowRight size={14} />
-          </button>
+        <div className="card hero-map">
+          {region ? (
+            <OpportunityMap
+              region={region}
+              dark={dark}
+              heat={heat}
+              index={index}
+              heatError={heatError}
+              types={types}
+              businessType={businessType}
+              businessName={businessName}
+              onBusinessType={onBusinessType}
+              probe={probe}
+              sim={fresh ? sim : null}
+              odds={fresh ? odds : undefined}
+              label={label}
+              scoring={scoring}
+              onProbe={(lat, lon) => setProbe({ lat, lon, key: Date.now() })}
+              onClear={() => setProbe(null)}
+              onOpen={() => sim && onOpenSite({ label, lat: sim.site.lat, lon: sim.site.lon })}
+              onExplain={() => document.getElementById("how")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            />
+          ) : (
+            <div className="hero-map__wait skeleton" />
+          )}
+          {probeError && <div className="hero-map__error">{probeError}</div>}
         </div>
-        <ol className="layer-table">
-          {LAYERS.map(([name, text], i) => (
-            <li key={name}>
-              <span className="layer-table__n num">{String(i + 1).padStart(2, "0")}</span>
-              <span className="layer-table__name">{name}</span>
-              <span className="layer-table__text muted">{text}</span>
-            </li>
-          ))}
-        </ol>
+      </section>
+
+      <StatBand
+        heat={heat}
+        index={index}
+        tables={tables}
+        sim={sim}
+        odds={odds}
+        dark={dark}
+        onData={() => go("data")}
+        onWorkspace={() => go("workspace")}
+      />
+
+      <div id="how" className="anchor-target">
+        <ModelEquation sim={sim} odds={odds} label={label} onTry={() => go("workspace")} />
+      </div>
+
+      <section className="card cap-grid" aria-label="What you can do">
+        {CAPABILITIES.map((c, i) => (
+          <CapCell key={c.title} c={c} n={i + 1} onRun={() => run(c.action)} />
+        ))}
       </section>
 
       <section className="home-pair">
         <article className="card evidence-card">
-          <div className="card-head">
+          <div className="card-head card-head--stack">
+            <ScrambleText className="kicker" text="evidence.backtest()" />
             <h2>Tested against real openings</h2>
           </div>
           <p className="muted">
@@ -215,7 +313,8 @@ export function HomeView({ region, businessName, types, tables, analyst, onAsk, 
         </article>
 
         <article className="card contribute-card">
-          <div className="card-head">
+          <div className="card-head card-head--stack">
+            <ScrambleText className="kicker" text="git clone && contribute/" />
             <h2>Contribute</h2>
           </div>
           <p className="muted">
@@ -256,7 +355,7 @@ export function HomeView({ region, businessName, types, tables, analyst, onAsk, 
       </section>
 
       <footer className="footer">
-        <span>SiteScore · MIT licence · built at Hack48 Sydney</span>
+        <span>SiteScore · MIT licence · open source</span>
         <span className="muted">
           Data: ABS (CC BY 4.0), © OpenStreetMap contributors (ODbL), Transport for NSW, NSW Planning Portal. Projections are
           model estimates, not advice.

@@ -298,7 +298,8 @@ class SearchCfg(Strict):
     shortlist: int = Field(ge=1)              # screened spots re-run with the full model
     min_separation_m: float = Field(ge=0)     # suggestions this far apart at least
     results: int = Field(ge=1)
-
+    heatmap_spacing_m: float = Field(250, ge=50)  # hex cell spacing for the region-wide map
+    heatmap_near_people_m: float = Field(450, gt=0)  # skip cells this far from anyone
 
 class ModelConfig(Strict):
     horizon_months: int = Field(ge=1, le=120)

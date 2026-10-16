@@ -11,6 +11,8 @@ import pytest
 os.environ["GOOGLE_PLACES_API_KEY"] = ""
 os.environ["TFNSW_API_KEY"] = ""
 os.environ["OPENROUTER_API_KEY"] = ""
+# No background heatmap scoring while the API starts in tests.
+os.environ["SITESCORE_WARM_HEATMAP"] = "0"
 
 from sitescore.datastore import DataStore
 from sitescore.pipeline import build_context, run_all

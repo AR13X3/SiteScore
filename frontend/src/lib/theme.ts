@@ -2,16 +2,24 @@ import { useEffect, useState } from "react";
 
 export const MAX_SITES = 5;
 
-// Categorical slots, fixed order, validated for colour-vision deficiency
-// (adjacent pairs) in both modes. A site keeps its slot for its whole life,
-// so removing one never repaints the others.
-const SITE_COLORS = {
-  light: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"],
-  dark: ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181"],
-};
+// Sites are told apart by number (and, in charts, by line pattern), not by hue: colour
+// is kept for the one that matters, so the selected site is the red signal and the
+// rest are ink. A site keeps its slot for its whole life, so its number and pattern
+// never change when another site is removed.
+const SITE_DASH: ("solid" | number[])[] = ["solid", [7, 4], [2, 3], [10, 3, 2, 3], [14, 5]];
 
-export function siteColor(slot: number, dark: boolean): string {
-  return SITE_COLORS[dark ? "dark" : "light"][slot % MAX_SITES];
+/** "01".."05" */
+export const siteNumber = (slot: number) => String(slot + 1).padStart(2, "0");
+
+/** The line pattern that identifies a site in charts. */
+export function siteDash(slot: number): "solid" | number[] {
+  return SITE_DASH[slot % MAX_SITES];
+}
+
+/** Red for the selected site, ink for the others. */
+export function siteInk(selected: boolean, dark: boolean): string {
+  if (selected) return dark ? "#ef6b6f" : "#e5484d";
+  return dark ? "#bdbdb8" : "#4a4a47";
 }
 
 export type ThemePref = "system" | "light" | "dark";
@@ -66,11 +74,12 @@ export function token(name: string): string {
 // colour never carries a status on its own.
 export const STATUS = { good: "#0ca30c", critical: "#d03b3b" } as const;
 
-// Ordinal single-hue ramp (blue), validated per mode: light end clears 2:1 on the
-// surface, steps read monotone. More = darker on light, more = lighter on dark.
+// Ordinal single-hue ramp (red, the brand signal), checked per mode: the faint end
+// clears 2:1 on the map tiles and the card surface, and each step is ~1.4x the last,
+// so the order reads at a glance. More = darker on light, more = lighter on dark.
 const ORDINAL = {
-  light: ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281"],
-  dark: ["#184f95", "#256abf", "#3987e5", "#6da7ec", "#9ec5f4"],
+  light: ["#ec8f8a", "#e2655f", "#d0433c", "#ac2c26", "#7e1d1a"],
+  dark: ["#9c3632", "#bd423d", "#dd5550", "#f2847f", "#fab8b4"],
 };
 
 export function ordinalColor(bin: number, dark: boolean): string {
