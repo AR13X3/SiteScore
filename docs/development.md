@@ -22,9 +22,11 @@ If the repo is inside OneDrive or Dropbox, the virtualenv and raw downloads go t
 The live site has two halves:
 
 - **The site** is the frontend on GitHub Pages: https://ar13x3.github.io/SiteScore/. `.github/workflows/pages.yml` builds it on every push to `main`, with `VITE_API_BASE` pointing at the API.
-- **The API** is the Docker image (`Dockerfile`) running on Joy's own server, made public through Tailscale Funnel (port 10000 only). `deploy/self-host/update.sh` runs from cron every 5 minutes: when `main` has moved it rebuilds the image and swaps the container. `SITESCORE_CORS_ORIGINS` lets the Pages site call it from the browser.
+- **The API** is the Docker image (`Dockerfile`) running on Joy's own server, made public through Tailscale Funnel (port 10000 only). A copy of `deploy/self-host/update.sh`, kept outside the repo, runs from cron every 5 minutes: when `main` has moved it rebuilds the image and swaps the container. `SITESCORE_CORS_ORIGINS` lets the Pages site call it from the browser.
 
-If the API can't be reached, the site shows a maintenance page ("Joy's server is offline and under maintenance") that checks every 30 seconds and comes back by itself. If the API drops mid-visit, a bar says so. The container has no model key, so the analyst [replays recorded runs](analyst.md#recorded-runs-the-hosted-demo). The `Demo container` CI job builds and smoke-tests the image on every pull request.
+If the API can't be reached, the site shows a maintenance page ("Joy's server is offline and under maintenance") that checks every 30 seconds and comes back by itself. If the API drops mid-visit, a bar says so. The container has no model key, so the analyst [replays recorded runs](analyst.md#recorded-runs-the-hosted-demo). The `Demo container` CI job builds and smoke-tests the image on every pull request, locked down the same way as the live one.
+
+The container is locked down. It runs as a non-root user with a read-only root filesystem (tmpfs only where the app writes: its data store, cache, `/tmp` and home), no Linux capabilities, no privilege escalation, a 256-process cap and CPU and memory limits. It has no mounts and no secrets, and it sits on its own Docker network (`sitescore-net`, bridge `br-sitescore`) with public DNS. If the app ever writes somewhere new, the CI job fails before the server does.
 
 To host the API yourself on any machine with Docker:
 
@@ -33,7 +35,18 @@ git clone https://github.com/AR13X3/SiteScore.git && cd SiteScore
 SITESCORE_CORS_ORIGINS=https://yourname.github.io deploy/self-host/update.sh   # builds and starts it on 127.0.0.1:7860
 ```
 
-Then make it public (Tailscale Funnel, a Cloudflare tunnel or a reverse proxy), point `VITE_API_BASE` in `pages.yml` at it, and add the cron line from the top of `update.sh`. To run everything in one container without Pages: `docker run -p 7860:7860 sitescore` serves the site and the API together.
+Then make it public (Tailscale Funnel, a Cloudflare tunnel or a reverse proxy) and point `VITE_API_BASE` in `pages.yml` at it. For the cron job, copy the script out of the repo and run the copy (the lines are at the top of `update.sh`). If cron ran the repo's own file, a change on `main` could run anything on your machine; with a copy, `main` only decides what runs inside Docker (the image build and the locked-down container). When `update.sh` changes, read the diff and copy it again. To run everything in one container without Pages: `docker run -p 7860:7860 sitescore` serves the site and the API together.
+
+**Optional: fence it off from your network.** `deploy/self-host/sitescore-fence` is a small nftables table that drops every new connection from `br-sitescore` to private addresses: your LAN and router, the tailnet, other Docker networks and the host itself. Replies to the tunnel still pass, and the public internet stays open (the address search calls NSW Spatial Services and Nominatim). A systemd unit loads it at boot, before Docker starts:
+
+```bash
+sudo install -m 755 deploy/self-host/sitescore-fence /usr/local/sbin/sitescore-fence
+sudo install -m 644 deploy/self-host/sitescore-fence.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now sitescore-fence
+sudo nft list table inet sitescore_fence   # the drop counter goes up when it blocks something
+```
+
+`sudo systemctl stop sitescore-fence` removes it.
 
 ## Configuration
 
@@ -63,5 +76,5 @@ data/demo-pack/  snapshot of the processed real data (loaded on a fresh clone)
 data/analyst-replays/  recorded analyst runs, replayed when no model key is set
 data/raw/        Google Places cache and request ledger (gitignored, never committed)
 tests/
-deploy/self-host/  keeps a self-hosted API in step with main (see Dockerfile)
+deploy/self-host/  keeps a self-hosted API in step with main (see Dockerfile), plus an optional network fence
 ```

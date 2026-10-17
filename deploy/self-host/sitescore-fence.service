@@ -1,0 +1,17 @@
+[Unit]
+Description=Fence the SiteScore container off from the private network
+Documentation=file:///usr/local/sbin/sitescore-fence
+DefaultDependencies=no
+Wants=network-pre.target
+After=nftables.service
+Before=network-pre.target docker.service shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/sitescore-fence start
+ExecStop=/usr/local/sbin/sitescore-fence stop
+
+[Install]
+WantedBy=multi-user.target

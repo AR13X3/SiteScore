@@ -55,16 +55,30 @@ jobs:
       - uses: actions/checkout@v7
       - name: Build the image the live demo runs
         run: docker build -t sitescore .
-      - name: Start it and check it answers
+      # Locked down as on the live server (deploy/self-host/update.sh): if the app starts
+      # writing outside these tmpfs mounts, this job fails instead of the live API.
+      - name: Start it locked down and check it answers
         run: |
-          docker run -d --name app -p 7860:7860 -e SITESCORE_WARM_EVIDENCE=0 sitescore
+          docker run -d --name app -p 7860:7860 -e SITESCORE_WARM_EVIDENCE=0 \
+            --read-only \
+            --tmpfs /tmp:rw,size=64m \
+            --tmpfs /app/data/processed:rw,uid=1000,gid=1000,size=512m \
+            --tmpfs /app/.local:rw,uid=1000,gid=1000,size=128m \
+            --tmpfs /home/app:rw,uid=1000,gid=1000,size=32m \
+            --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 \
+            sitescore
           for i in $(seq 1 60); do curl -fsS localhost:7860/api/health && break; sleep 2; done
           curl -fsS localhost:7860/ | grep -q 'id="root"'
           curl -fsS localhost:7860/api/analyst/status | tee /dev/stderr | grep -q '"mode":"replay"'
           curl -fsS -X POST localhost:7860/api/simulate -H 'Content-Type: application/json' \
             -d '{"business_type":"cafe","sites":[{"id":"a","label":"a","lat":-33.815,"lon":151.0035}]}' | grep -q total_revenue
+          curl -fsS -m 300 -o heatmap.json 'localhost:7860/api/heatmap?business_type=cafe' && grep -q spacing_m heatmap.json
           curl -fsS -N -X POST localhost:7860/api/analyst/chat -H 'Content-Type: application/json' \
             -d '{"question":"How accurate is SiteScore? Should I trust it?"}' | grep -q 'event: done'
+      - name: No write or permission errors
+        run: |
+          docker inspect app --format '{{.HostConfig.ReadonlyRootfs}} {{.HostConfig.CapDrop}}' | grep -q 'true \[ALL\]'
+          if docker logs app 2>&1 | grep -E 'Read-only file system|Permission denied|PermissionError'; then exit 1; fi
       - name: Container log
         if: always()
         run: docker logs app 2>&1 | tail -40
