@@ -1,0 +1,40 @@
+#!/bin/sh
+# Fence the SiteScore container off from the private network. Optional; needs root:
+#
+#   sudo install -m 755 deploy/self-host/sitescore-fence /usr/local/sbin/sitescore-fence
+#   sudo install -m 644 deploy/self-host/sitescore-fence.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now sitescore-fence
+#
+# update.sh runs the container on its own bridge, br-sitescore. This drops every new
+# connection from that bridge to private addresses: the LAN, the tailnet, other Docker
+# networks and this host. Replies to connections made to the container (Funnel or a
+# proxy calling the API) still pass, and the public internet stays open (the address
+# search calls NSW Spatial Services and Nominatim). IPv6 from the bridge is dropped.
+#
+# It is its own nftables table, loaded before Docker starts. A drop in one table is final
+# whatever other tables accept, so Docker's, Tailscale's and UFW's rules can't undo it.
+set -eu
+case "${1:-start}" in
+  start)
+    nft -f - <<'EOF'
+table inet sitescore_fence
+delete table inet sitescore_fence
+table inet sitescore_fence {
+  chain prerouting {
+    type filter hook prerouting priority mangle; policy accept;
+    iifname != "br-sitescore" accept
+    ct state established,related accept
+    meta nfproto ipv6 counter drop
+    ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16, 224.0.0.0/3 } counter drop
+  }
+}
+EOF
+    ;;
+  stop)
+    nft delete table inet sitescore_fence 2>/dev/null || true
+    ;;
+  *)
+    echo "usage: $0 [start|stop]" >&2
+    exit 2
+    ;;
+esac
