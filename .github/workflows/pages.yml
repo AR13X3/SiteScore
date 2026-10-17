@@ -1,0 +1,57 @@
+name: Publish site
+
+# The live site: the frontend on GitHub Pages (https://ar13x3.github.io/SiteScore/),
+# talking to the API on Joy's server. That server updates itself from main
+# (deploy/self-host/update.sh), so a push to main updates both halves.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  # Where the API runs (Tailscale Funnel on Joy's server). Forks: point this at your own.
+  VITE_API_BASE: https://gw03.tail9662e3.ts.net:10000
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Build for /SiteScore/
+        run: npm run build -- --base=/SiteScore/
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: frontend/dist
+
+  deploy:
+    name: Publish to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

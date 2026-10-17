@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # Also run the Evidence page's default backtest (~20 s) after startup. On for the
     # hosted demo (the Dockerfile sets it); off by default, as local runs start often.
     warm_evidence: bool = Field(False, validation_alias="SITESCORE_WARM_EVIDENCE")
+    # Sites on other origins allowed to call this API from the browser, comma-separated
+    # (e.g. the GitHub Pages site: https://ar13x3.github.io). Empty: same origin only.
+    cors_origins: str = Field("", validation_alias="SITESCORE_CORS_ORIGINS")
     # AI analyst (optional): any OpenRouter model that supports tool calling.
     openrouter_api_key: str | None = Field(None, validation_alias="OPENROUTER_API_KEY")
     openrouter_model: str = Field("anthropic/claude-haiku-5.5", validation_alias="OPENROUTER_MODEL")

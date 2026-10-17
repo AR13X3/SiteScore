@@ -13,6 +13,8 @@ os.environ["TFNSW_API_KEY"] = ""
 os.environ["OPENROUTER_API_KEY"] = ""
 # No background heatmap scoring while the API starts in tests.
 os.environ["SITESCORE_WARM_HEATMAP"] = "0"
+# One allowed cross-origin site, so the CORS rule is exercised (tests/test_api.py).
+os.environ["SITESCORE_CORS_ORIGINS"] = "https://example.github.io"
 
 from sitescore.datastore import DataStore
 from sitescore.pipeline import build_context, run_all

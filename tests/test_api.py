@@ -115,3 +115,13 @@ def test_as_of_before_data_existed_is_422_with_reason(client):
 def test_site_count_limits(client):
     assert client.post("/api/evaluate", json={"sites": []}).status_code == 422
     assert client.post("/api/evaluate", json={"sites": [CBD] * 6}).status_code == 422
+
+
+def test_only_the_listed_site_may_call_from_another_origin(client):
+    ok = client.options("/api/simulate", headers={"Origin": "https://example.github.io",
+                                                  "Access-Control-Request-Method": "POST",
+                                                  "Access-Control-Request-Headers": "content-type"})
+    assert ok.status_code == 200
+    assert ok.headers["access-control-allow-origin"] == "https://example.github.io"
+    other = client.get("/api/health", headers={"Origin": "https://evil.example"})
+    assert "access-control-allow-origin" not in other.headers

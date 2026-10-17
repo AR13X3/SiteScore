@@ -13,7 +13,7 @@ An open-source simulator that projects 36 months of revenue for any street corne
 [![React + TypeScript](https://img.shields.io/badge/react-typescript-1d1d1d)](frontend/)
 [![Data contributions wanted](https://img.shields.io/badge/data-contributions%20wanted-e5484d)](#help-train-sitescore)
 
-[Quick start](#quick-start) · [Help train it](#help-train-sitescore) · [How it works](#how-it-works) · [How accurate is it?](#how-accurate-is-it) · [Docs](#documentation)
+**[Live demo](https://ar13x3.github.io/SiteScore/)** · [Quick start](#quick-start) · [Help train it](#help-train-sitescore) · [How it works](#how-it-works) · [How accurate is it?](#how-accurate-is-it) · [Docs](#documentation)
 
 </div>
 

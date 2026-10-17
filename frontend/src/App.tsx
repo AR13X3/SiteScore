@@ -5,6 +5,7 @@ import { DataBadge } from "./components/DataBadge";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { IconArrowUpRight, IconGithub, IconMonitor, IconMoon, IconSun } from "./components/Icons";
 import { GridPulse } from "./components/GridPulse";
+import { MaintenancePage, OfflineBanner } from "./components/ServerStatus";
 import { Splash } from "./components/Splash";
 import { StatusStrip } from "./components/StatusStrip";
 import { type AnalystStatus, analystMode } from "./lib/analyst";
@@ -76,7 +77,8 @@ export default function App() {
   const [analyst, setAnalyst] = useState<AnalystStatus | null>(null);
   const [businessType, setBusinessType] = useState("cafe");
   const [asOf, setAsOf] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Start-up couldn't reach the server: the maintenance page replaces the screens.
+  const [serverDown, setServerDown] = useState(false);
   const [incoming, setIncoming] = useState<{ question: string; key: number } | null>(null);
   const [seed, setSeed] = useState<{ site: { label: string; lat: number; lon: number }; key: number } | null>(null);
   const [command, setCommand] = useState<{ type: WorkspaceCommand; key: number } | null>(null);
@@ -100,7 +102,7 @@ export default function App() {
       // private mode: it shows again next load, which is fine
     }
   }, []);
-  const showScreens = intro !== "splash";
+  const showScreens = intro !== "splash" && !serverDown;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
@@ -120,9 +122,9 @@ export default function App() {
   useEffect(() => {
     prefetchHeatmap("cafe"); // the overview's map, ready when the loading screen lifts
     // Each start-up request ticks off its line on the loading screen as it lands.
-    const fail = (e: Error) => {
-      setError(`Can't reach the SiteScore API: ${e.message}`);
-      setBooted({ region: true, types: true, data: true, range: true, analyst: true });
+    const fail = () => {
+      setServerDown(true);
+      setIntro("done"); // no loading screen for a server that isn't there
     };
     api.region().then((r) => { setRegion(r); mark("region"); }).catch(fail);
     api.businessTypes().then((t) => { setTypes(t); mark("types"); }).catch(fail);
@@ -251,7 +253,7 @@ export default function App() {
         </div>
       </header>
 
-      {error && <div className="alert">{error}</div>}
+      {serverDown ? <MaintenancePage /> : <OfflineBanner />}
       {screen === "workspace" && selectedType?.status === "draft" && (
         <div className="alert alert--info">
           The {selectedType.name.toLowerCase()} profile is a draft: its assumptions haven't been validated yet.

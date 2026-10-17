@@ -13,6 +13,7 @@ import {
   findReplay,
   messageText,
 } from "../lib/analyst";
+import { API_BASE, OFFLINE_MESSAGE, reportOffline } from "../lib/api";
 import { OPENROUTER_KEYS_URL, REPO_URL } from "../lib/project";
 import {
   IconArrowRight,
@@ -115,10 +116,15 @@ export function AnalystPanel({ status, businessType, businessName, siteCount, ge
         await askAnalyst({ question: q, history, workspace: getWorkspace() }, (ev) => {
           if (ev.event === "ui") onAction(ev.data);
           update((m) => applyEvent(m, ev));
-        }, ctrl.signal);
+        }, ctrl.signal, `${API_BASE}/api/analyst/chat`);
         update((m) => ({ ...m, pending: false }));
       } catch (e) {
         const err = e as Error;
+        // fetch() rejects with a TypeError when the server can't be reached at all.
+        if (err instanceof TypeError) {
+          reportOffline("analyst/chat");
+          err.message = OFFLINE_MESSAGE;
+        }
         update((m) => ({
           ...m,
           pending: false,

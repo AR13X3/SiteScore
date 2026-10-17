@@ -184,8 +184,9 @@ export async function askAnalyst(
   body: { question: string; history: { role: string; content: string }[]; workspace: WorkspaceContext },
   onEvent: (ev: AnalystEvent) => void,
   signal: AbortSignal,
+  url = "/api/analyst/chat",
 ): Promise<void> {
-  const res = await fetch("/api/analyst/chat", {
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

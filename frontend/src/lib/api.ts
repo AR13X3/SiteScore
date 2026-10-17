@@ -18,29 +18,80 @@ import type {
 import type { AnalystStatus } from "./analyst";
 import type { Heatmap } from "./heat";
 
+/**
+ * Where the API lives. Empty (same origin) when FastAPI serves this page; the GitHub
+ * Pages build sets VITE_API_BASE to Joy's server, which runs the model.
+ */
+export const API_BASE = (((import.meta as { env?: Record<string, string | undefined> }).env?.VITE_API_BASE) ?? "")
+  .replace(/\/+$/, "");
+
+export const OFFLINE_MESSAGE = "Joy's server is offline and under maintenance.";
+
+/** The API couldn't be reached at all (down, unreachable, or too slow to answer). */
+export class ServerOffline extends Error {
+  constructor() {
+    super(OFFLINE_MESSAGE);
+    this.name = "ServerOffline";
+  }
+}
+
 /** Every finished API call, for the status strip: which endpoint, how long, did it work. */
 export interface ApiCall {
   endpoint: string;
   ms: number;
   ok: boolean;
+  /** The server itself couldn't be reached (rather than answering with an error). */
+  offline?: boolean;
 }
 export const API_EVENT = "sitescore:api";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/** Tell the page the server is unreachable (the analyst stream uses this too). */
+export function reportOffline(endpoint: string): void {
+  window.dispatchEvent(new CustomEvent<ApiCall>(API_EVENT, { detail: { endpoint, ms: 0, ok: false, offline: true } }));
+}
+
+// A proxy in front of the API (Tailscale Funnel) answers these when the server behind it is down.
+const GATEWAY_DOWN = new Set([502, 503, 504]);
+
+async function request<T>(path: string, init?: RequestInit, timeoutMs?: number): Promise<T> {
   const t0 = performance.now();
-  const report = (ok: boolean) =>
+  const endpoint = path.replace(/^\/api\//, "").split("?")[0];
+  const report = (ok: boolean, offline = false) =>
     window.dispatchEvent(new CustomEvent<ApiCall>(API_EVENT, {
-      detail: { endpoint: path.replace(/^\/api\//, "").split("?")[0], ms: performance.now() - t0, ok },
+      detail: { endpoint, ms: performance.now() - t0, ok, offline },
     }));
+  // Our own abort (a timeout) and the caller's (a superseded search) are told apart.
+  const ctrl = new AbortController();
+  const outer = init?.signal;
+  if (outer) {
+    if (outer.aborted) ctrl.abort();
+    else outer.addEventListener("abort", () => ctrl.abort(), { once: true });
+  }
+  let timedOut = false;
+  const timer = timeoutMs ? setTimeout(() => {
+    timedOut = true;
+    ctrl.abort();
+  }, timeoutMs) : undefined;
   let res: Response;
   try {
-    res = await fetch(path, {
+    res = await fetch(API_BASE + path, {
       ...init,
+      signal: ctrl.signal,
       headers: { "Content-Type": "application/json", ...init?.headers },
     });
   } catch (e) {
-    if ((e as Error).name !== "AbortError") report(false); // a superseded search isn't a failure
-    throw e;
+    if (timedOut || (e as Error).name !== "AbortError") {
+      report(false, true);
+      throw new ServerOffline();
+    }
+    throw e; // the caller cancelled: not a failure
+  } finally {
+    clearTimeout(timer);
+  }
+  const json = (res.headers.get("content-type") ?? "").includes("application/json");
+  if (GATEWAY_DOWN.has(res.status) && !json) {
+    report(false, true);
+    throw new ServerOffline();
   }
   report(res.ok);
   if (!res.ok) {
@@ -65,14 +116,19 @@ export interface SimulateRequest {
   costs?: Costs;
 }
 
+// The start-up calls give up after this long, so a server that's down can't leave the
+// page waiting: it says so instead.
+const BOOT_TIMEOUT_MS = 15_000;
+
 export const api = {
-  region: () => request<Region>("/api/region"),
-  businessTypes: () => request<BusinessType[]>("/api/business-types"),
+  health: () => request<{ status: string }>("/api/health", undefined, 8_000),
+  region: () => request<Region>("/api/region", undefined, BOOT_TIMEOUT_MS),
+  businessTypes: () => request<BusinessType[]>("/api/business-types", undefined, BOOT_TIMEOUT_MS),
   businessProfile: (id: string) => request<BusinessProfile>(`/api/business-types/${encodeURIComponent(id)}`),
-  dataStatus: () => request<TableStatus[]>("/api/data/status"),
+  dataStatus: () => request<TableStatus[]>("/api/data/status", undefined, BOOT_TIMEOUT_MS),
   sources: () => request<SourceInfo[]>("/api/sources"),
-  analystStatus: () => request<AnalystStatus>("/api/analyst/status"),
-  asOfRange: () => request<AsOfRange>("/api/data/as-of-range"),
+  analystStatus: () => request<AnalystStatus>("/api/analyst/status", undefined, BOOT_TIMEOUT_MS),
+  asOfRange: () => request<AsOfRange>("/api/data/as-of-range", undefined, BOOT_TIMEOUT_MS),
   geocode: (q: string, signal?: AbortSignal) =>
     request<GeocodeHit[]>(`/api/geocode?q=${encodeURIComponent(q)}`, { signal }),
   simulate: (body: SimulateRequest) =>
