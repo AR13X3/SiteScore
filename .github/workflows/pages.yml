@@ -21,6 +21,9 @@ concurrency:
 env:
   # Where the API runs (Tailscale Funnel on Joy's server). Forks: point this at your own.
   VITE_API_BASE: https://gw03.tail9662e3.ts.net:10000
+  # Visit counts through GoatCounter: set the repo variable GOATCOUNTER to the site's code
+  # (or a full https count URL). Unset, the site counts nothing.
+  VITE_GOATCOUNTER: ${{ vars.GOATCOUNTER }}
 
 jobs:
   build:
