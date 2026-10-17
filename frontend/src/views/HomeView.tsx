@@ -14,7 +14,7 @@ import { ModelEquation } from "../components/ModelEquation";
 import { StatBand } from "../components/StatBand";
 import { BlockReveal, ScrambleText, useTypewriter } from "../components/Motion";
 import { OpportunityMap, type Probe } from "../components/OpportunityMap";
-import type { AnalystStatus } from "../lib/analyst";
+import { type AnalystStatus, analystMode } from "../lib/analyst";
 import { api } from "../lib/api";
 import { heatIndex } from "../lib/heat";
 import { useHeatmap } from "../lib/hooks";
@@ -136,11 +136,16 @@ export function HomeView(props: Props) {
   const label = sim ? placeLabel(sim) : "Parramatta CBD";
 
   const b = businessName.toLowerCase();
-  const examples = [
-    `Best ${b} spot within 1 km of Parramatta station, ranked by profit`,
-    "Compare Church St, Harris Park and Wentworth Point",
-    "Are any vacant shopfronts near Westmead Hospital worth a look?",
-  ];
+  const mode = analystMode(analyst);
+  // On the hosted demo the examples are the questions it has recorded runs for.
+  const recorded = (analyst?.replays ?? []).filter((r) => r.business_type === businessType).map((r) => r.question);
+  const examples = mode === "replay" && recorded.length
+    ? recorded.slice(0, 3)
+    : [
+        `Best ${b} spot within 1 km of Parramatta station, ranked by profit`,
+        "Compare Church St, Harris Park and Wentworth Point",
+        "Are any vacant shopfronts near Westmead Hospital worth a look?",
+      ];
   const ask = (text: string) => (text.trim() ? onAsk(text.trim()) : go("workspace"));
   const ghost = useTypewriter(examples, !q);
   // The ghost question scrolls like a terminal line: the newest characters stay in view.
@@ -210,7 +215,7 @@ export function HomeView(props: Props) {
               )}
             </span>
             <button className="ask__go" type="submit">
-              {analyst?.enabled === false ? "Open workspace" : "Ask"} <IconArrowUpRight size={16} />
+              {mode === "off" ? "Open workspace" : "Ask"} <IconArrowUpRight size={16} />
             </button>
           </form>
           <ul className="example-list">
@@ -224,8 +229,14 @@ export function HomeView(props: Props) {
               </li>
             ))}
           </ul>
-          {analyst?.enabled === false && (
+          {mode === "off" && (
             <p className="muted small">The analyst needs an OpenRouter key (the Workspace shows how). Everything else works without one.</p>
+          )}
+          {mode === "replay" && (
+            <p className="muted small hero__demo-note">
+              <span className="mono">demo/</span> The examples replay recorded runs of the analyst; the map and model are
+              live. To ask your own questions, run SiteScore with your OpenRouter key.
+            </p>
           )}
         </div>
 

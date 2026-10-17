@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # Score the region-wide opportunity map in the background at startup (~10 s), so the
     # first visitor to the overview doesn't wait for it.
     warm_heatmap: bool = Field(True, validation_alias="SITESCORE_WARM_HEATMAP")
+    # Also run the Evidence page's default backtest (~20 s) after startup. On for the
+    # hosted demo (the Dockerfile sets it); off by default, as local runs start often.
+    warm_evidence: bool = Field(False, validation_alias="SITESCORE_WARM_EVIDENCE")
     # AI analyst (optional): any OpenRouter model that supports tool calling.
     openrouter_api_key: str | None = Field(None, validation_alias="OPENROUTER_API_KEY")
     openrouter_model: str = Field("anthropic/claude-haiku-5.5", validation_alias="OPENROUTER_MODEL")

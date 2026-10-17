@@ -1,0 +1,157 @@
+{
+ "question": "How accurate is SiteScore? Should I trust it?",
+ "business_type": "cafe",
+ "model": "anthropic/claude-haiku-5.5",
+ "recorded_on": "2026-10-17",
+ "events": [
+  {
+   "t": 0.0,
+   "event": "status",
+   "data": {
+    "model": "anthropic/claude-haiku-5.5"
+   }
+  },
+  {
+   "t": 2.005,
+   "event": "step",
+   "data": {
+    "id": "toolu_01ANjjdYKtj91w7r8g7HmLgv",
+    "name": "model_track_record",
+    "label": "Checking the model's backtest record",
+    "args": {
+     "business_type": "cafe"
+    }
+   }
+  },
+  {
+   "t": 26.026,
+   "event": "step_done",
+   "data": {
+    "id": "toolu_01ANjjdYKtj91w7r8g7HmLgv",
+    "name": "model_track_record",
+    "ok": true,
+    "summary": "Backtest: 29 real openings scored",
+    "ms": 24021
+   }
+  },
+  {
+   "t": 26.026,
+   "event": "step",
+   "data": {
+    "id": "toolu_01BcU4Haxj1RJzgKyrz3vkJs",
+    "name": "data_coverage",
+    "label": "Checking data coverage",
+    "args": {}
+   }
+  },
+  {
+   "t": 26.029,
+   "event": "step_done",
+   "data": {
+    "id": "toolu_01BcU4Haxj1RJzgKyrz3vkJs",
+    "name": "data_coverage",
+    "ok": true,
+    "summary": "6 of 6 model inputs are real data",
+    "ms": 3
+   }
+  },
+  {
+   "t": 28.879,
+   "event": "text",
+   "data": {
+    "delta": "**Short answer: use it to compare sites, not to forecast revenue.** The backtest shows only weak predictive sk"
+   }
+  },
+  {
+   "t": 29.371,
+   "event": "text",
+   "data": {
+    "delta": "ill, and the full model isn't clearly better than foot traffic alone.\n\n**Backtest results (cafés, 29 real openings)**\n\n- **Ranking accuracy:** the"
+   }
+  },
+  {
+   "t": 29.372,
+   "event": "text",
+   "data": {
+    "delta": " model ranks pairs of openings correctly 59.8% of the time, versus 58% for foot traffic alone. Coin-flip is 50%.\n- **Combined performance score:** Spearman corre"
+   }
+  },
+  {
+   "t": 29.613,
+   "event": "text",
+   "data": {
+    "delta": "lation of 0.25 for the full model versus 0.23 for foot traffic. The 90% confidence interval runs from -0.09 to 0.55, so the result could be no sk"
+   }
+  },
+  {
+   "t": 29.857,
+   "event": "text",
+   "data": {
+    "delta": "ill at all.\n- **Google reviews per month:** 0.18 for the full model versus 0.07 for foot traffic, with an interval that includes zero.\n- **Café closures nearby since"
+   }
+  },
+  {
+   "t": 30.102,
+   "event": "text",
+   "data": {
+    "delta": " 2019:** this is the clearest signal, 0.35 versus 0.09 for foot traffic, with an interval of 0.07 to 0.57. It's still a"
+   }
+  },
+  {
+   "t": 30.346,
+   "event": "text",
+   "data": {
+    "delta": " modest effect.\n- **Layers that clearly beat noise:** none on the main outcomes. The extra layers add a little over foot traffic,"
+   }
+  },
+  {
+   "t": 30.589,
+   "event": "text",
+   "data": {
+    "delta": " but not reliably.\n- **Survival:** 25 of 29 openings were still trading at 18 months, 4 were unknown, and none were recorded as closed.\n\n**What this"
+   }
+  },
+  {
+   "t": 30.835,
+   "event": "text",
+   "data": {
+    "delta": " means for you**\n\n- The model is directionally useful. It's a structured, explainable way to compare sites in"
+   }
+  },
+  {
+   "t": 31.085,
+   "event": "text",
+   "data": {
+    "delta": " the same area.\n- Don't rely on its dollar figures (revenue, profit, P10-P90 ranges) as predictions. Revenue isn't publ"
+   }
+  },
+  {
+   "t": 31.325,
+   "event": "text",
+   "data": {
+    "delta": "icly available, so the backtest used proxies: survival, Google reviews and opening-hours changes.\n- Rent is an index estimate, not a listing price. Check real"
+   }
+  },
+  {
+   "t": 31.57,
+   "event": "text",
+   "data": {
+    "delta": " asking rents before deciding.\n- The sample is small (29 openings, one region, Parramatta only), and the cohort slightly favours survivors."
+   }
+  },
+  {
+   "t": 31.817,
+   "event": "text",
+   "data": {
+    "delta": "\n\nIf you use it, treat the output as a shortlist generator. Then check foot traffic, competitors, and rent on the ground before you sign a lease."
+   }
+  },
+  {
+   "t": 31.855,
+   "event": "done",
+   "data": {
+    "steps": 2
+   }
+  }
+ ]
+}

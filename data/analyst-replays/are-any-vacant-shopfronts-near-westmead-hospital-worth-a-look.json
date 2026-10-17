@@ -1,0 +1,1586 @@
+{
+ "question": "Are any vacant shopfronts near Westmead Hospital worth a look?",
+ "business_type": "cafe",
+ "model": "anthropic/claude-haiku-5.5",
+ "recorded_on": "2026-10-17",
+ "events": [
+  {
+   "t": 0.0,
+   "event": "status",
+   "data": {
+    "model": "anthropic/claude-haiku-5.5"
+   }
+  },
+  {
+   "t": 2.165,
+   "event": "step",
+   "data": {
+    "id": "toolu_015ysCMr8sNnwtFR1AWkDSg4",
+    "name": "geocode",
+    "label": "Looking up “Westmead Hospital, Westmead NSW”",
+    "args": {
+     "query": "Westmead Hospital, Westmead NSW"
+    }
+   }
+  },
+  {
+   "t": 7.959,
+   "event": "step_done",
+   "data": {
+    "id": "toolu_015ysCMr8sNnwtFR1AWkDSg4",
+    "name": "geocode",
+    "ok": true,
+    "summary": "Found Westmead Hospital, 166-174, Darcy Road, Westmead, Sydney, New South Wales, 2145, Australia",
+    "ms": 5795
+   }
+  },
+  {
+   "t": 9.846,
+   "event": "step",
+   "data": {
+    "id": "toolu_01W3R4BG34cLwXYakdW7K8xW",
+    "name": "find_spots",
+    "label": "Scanning 1.0 km for vacant shopfronts",
+    "args": {
+     "lat": -33.802788,
+     "lon": 150.98709,
+     "radius_m": 1000,
+     "where": "vacant",
+     "business_type": "cafe"
+    }
+   }
+  },
+  {
+   "t": 10.361,
+   "event": "ui",
+   "data": {
+    "type": "search",
+    "result": {
+     "where": "vacant",
+     "rank_by": "revenue",
+     "as_of": "2026-10-17",
+     "open_date": "2026-11-01",
+     "lat": -33.80279,
+     "lon": 150.98709,
+     "radius_m": 1000.0,
+     "n_candidates": 1,
+     "n_shortlisted": 1,
+     "spots": [
+      {
+       "id": "node/11335014404",
+       "label": "Near Western Sydney University Westmead",
+       "kind": "Former takeaway",
+       "former_use": "fast_food",
+       "lat": -33.8065811,
+       "lon": 150.9875913,
+       "rank": 1,
+       "total_revenue": 791747.8795620564,
+       "total_profit": -704403.816970584,
+       "mature_monthly": 24053.518901357456,
+       "revenue_range": [
+        560113.7971399898,
+        962482.7553495719
+       ],
+       "profit_range": [
+        -866547.6746660306,
+        -584889.4039193231
+       ],
+       "prob_loss": 1.0,
+       "prob_best": 1.0,
+       "headline": "Near Western Sydney University Westmead: add another site to compare",
+       "quick_monthly": 19896.243782031714,
+       "rent_monthly": 6461.870351778429
+      }
+     ],
+     "grid": [],
+     "vacancies": [
+      {
+       "id": "node/11335014404",
+       "lat": -33.8065811,
+       "lon": 150.9875913,
+       "label": "Near Western Sydney University Westmead",
+       "kind": "Former takeaway",
+       "former_use": "fast_food"
+      }
+     ],
+     "notes": [
+      "Vacant shopfronts come from OpenStreetMap mappers: check each one is still available before relying on it."
+     ]
+    },
+    "settings": {
+     "lat": -33.802788,
+     "lon": 150.98709,
+     "radius": 1000.0,
+     "where": "vacant",
+     "retailOnly": true,
+     "rankBy": "revenue"
+    }
+   }
+  },
+  {
+   "t": 10.361,
+   "event": "step_done",
+   "data": {
+    "id": "toolu_01W3R4BG34cLwXYakdW7K8xW",
+    "name": "find_spots",
+    "ok": true,
+    "summary": "Scored 1 candidates in 1.0 km · top: Near Western Sydney University Westmead",
+    "ms": 515
+   }
+  },
+  {
+   "t": 12.859,
+   "event": "step",
+   "data": {
+    "id": "toolu_01RjJ2Sb1x64yfUNWcZoVrNW",
+    "name": "find_spots",
+    "label": "Scanning 2.5 km for vacant shopfronts",
+    "args": {
+     "lat": -33.802788,
+     "lon": 150.98709,
+     "radius_m": 2500,
+     "where": "vacant",
+     "business_type": "cafe",
+     "retail_only": false
+    }
+   }
+  },
+  {
+   "t": 22.207,
+   "event": "ui",
+   "data": {
+    "type": "search",
+    "result": {
+     "where": "vacant",
+     "rank_by": "revenue",
+     "as_of": "2026-10-17",
+     "open_date": "2026-11-01",
+     "lat": -33.80279,
+     "lon": 150.98709,
+     "radius_m": 2500.0,
+     "n_candidates": 21,
+     "n_shortlisted": 12,
+     "spots": [
+      {
+       "id": "node/6779489135",
+       "label": "Near Woolworths Parramatta Station (Metro)",
+       "kind": "Vacant shop",
+       "former_use": "",
+       "lat": -33.8175319,
+       "lon": 151.0045198,
+       "rank": 1,
+       "total_revenue": 2679304.2073429716,
+       "total_profit": 242322.1098181017,
+       "mature_monthly": 82376.3157559099,
+       "revenue_range": [
+        1968067.2847987153,
+        3387212.3982251477
+       ],
+       "profit_range": [
+        -255543.73596287754,
+        737857.8434356253
+       ],
+       "prob_loss": 0.32666666666666666,
+       "prob_best": 0.9566666666666667,
+       "headline": "Near Woolworths Parramatta Station (Metro) ranks #1, +44% vs the average candidate: helped by more potential customers within walking distance (+34%); held back by customers who visit less often (-7%)",
+       "quick_monthly": 65354.018287321014,
+       "rent_monthly": 16866.412092277176
+      },
+      {
+       "id": "node/8699896545",
+       "label": "Near Church Street",
+       "kind": "Former shop (jewelry)",
+       "former_use": "jewelry",
+       "lat": -33.8122497,
+       "lon": 151.0044189,
+       "rank": 2,
+       "total_revenue": 2053220.9381129628,
+       "total_profit": 70562.84010147885,
+       "mature_monthly": 64189.18915850867,
+       "revenue_range": [
+        1352515.2064686685,
+        2776688.2001179056
+       ],
+       "profit_range": [
+        -419931.1720495274,
+        576989.9235049391
+       ],
+       "prob_loss": 0.51,
+       "prob_best": 0.043333333333333335,
+       "headline": "Near Church Street ranks #2, +10% vs the average candidate: helped by less competition for its customers (+42%); held back by fewer potential customers within walking distance (-18%)",
+       "quick_monthly": 53651.40332229223,
+       "rent_monthly": 9463.66157159986
+      },
+      {
+       "id": "node/12818542816",
+       "label": "Near Church Street",
+       "kind": "Vacant shop",
+       "former_use": "",
+       "lat": -33.8133555,
+       "lon": 151.0039752,
+       "rank": 3,
+       "total_revenue": 1932443.937288593,
+       "total_profit": -55317.27662944894,
+       "mature_monthly": 60326.7808714438,
+       "revenue_range": [
+        1303610.4387731103,
+        2584329.0682045855
+       ],
+       "profit_range": [
+        -495500.7255902868,
+        401002.3150117459
+       ],
+       "prob_loss": 0.6433333333333333,
+       "prob_best": 0.0,
+       "headline": "Near Church Street ranks #3, +4% vs the average candidate",
+       "quick_monthly": 48568.15511817159,
+       "rent_monthly": 10611.889798096221
+      },
+      {
+       "id": "node/12818541505",
+       "label": "Near Church Street",
+       "kind": "Vacant shop",
+       "former_use": "",
+       "lat": -33.813308,
+       "lon": 151.003987,
+       "rank": 4,
+       "total_revenue": 1918022.1096787348,
+       "total_profit": -62811.46114787047,
+       "mature_monthly": 59879.751825834996,
+       "revenue_range": [
+        1294682.528261537,
+        2560753.194164192
+       ],
+       "profit_range": [
+        -499149.168139909,
+        387100.2979919498
+       ],
+       "prob_loss": 0.6433333333333333,
+       "prob_best": 0.0,
+       "headline": "Near Church Street ranks #4, +3% vs the average candidate",
+       "quick_monthly": 48249.1294564017,
+       "rent_monthly": 10539.637164527356
+      },
+      {
+       "id": "node/6775869882",
+       "label": "Optus Business Hub Parramatta",
+       "kind": "Former shop (mobile phone)",
+       "former_use": "mobile_phone",
+       "lat": -33.8158438,
+       "lon": 151.0057383,
+       "rank": 5,
+       "total_revenue": 1881794.6465312503,
+       "total_profit": -333869.9188708437,
+       "mature_monthly": 57209.66664314897,
+       "revenue_range": [
+        1366107.422332818,
+        2289110.7333667283
+       ],
+       "profit_range": [
+        -694850.9758097463,
+        -48748.65808600877
+       ],
+       "prob_loss": 0.92,
+       "prob_best": 0.0,
+       "headline": "Optus Business Hub Parramatta ranks #5, +1% vs the average candidate: helped by more potential customers within walking distance (+52%); held back by tougher competition nearby (-39%)",
+       "quick_monthly": 45355.64487070256,
+       "rent_monthly": 17364.615873408857
+      }
+     ],
+     "grid": [],
+     "vacancies": [
+      {
+       "id": "node/1611285794",
+       "lat": -33.8137739,
+       "lon": 151.00372,
+       "label": "Near Church Street",
+       "kind": "Vacant shop",
+       "former_use": ""
+      },
+      {
+       "id": "node/1612463934",
+       "lat": -33.8123514,
+       "lon": 150.985405,
+       "label": "Near Sacred Heart Primary School",
+       "kind": "Former pharmacy",
+       "former_use": "pharmacy"
+      },
+      {
+       "id": "node/5419408981",
+       "lat": -33.8139724,
+       "lon": 151.0034475,
+       "label": "Near Church Street",
+       "kind": "Former bank",
+       "former_use": "bank"
+      },
+      {
+       "id": "node/6775869882",
+       "lat": -33.8158438,
+       "lon": 151.0057383,
+       "label": "Optus Business Hub Parramatta",
+       "kind": "Former shop (mobile phone)",
+       "former_use": "mobile_phone"
+      },
+      {
+       "id": "node/6779489135",
+       "lat": -33.8175319,
+       "lon": 151.0045198,
+       "label": "Near Woolworths Parramatta Station (Metro)",
+       "kind": "Vacant shop",
+       "former_use": ""
+      },
+      {
+       "id": "node/6779964766",
+       "lat": -33.8150066,
+       "lon": 151.0032341,
+       "label": "Near Parramatta Square",
+       "kind": "Former bank",
+       "former_use": "bank"
+      },
+      {
+       "id": "node/7444349468",
+       "lat": -33.8109819,
+       "lon": 151.0042155,
+       "label": "Near Church Street",
+       "kind": "Former restaurant",
+       "former_use": "restaurant"
+      },
+      {
+       "id": "node/7444349469",
+       "lat": -33.8109095,
+       "lon": 151.0041431,
+       "label": "Near Prince Alfred Square",
+       "kind": "Former restaurant",
+       "former_use": "restaurant"
+      },
+      {
+       "id": "node/8111240748",
+       "lat": -33.8150458,
+       "lon": 151.0062439,
+       "label": "Near Parramatta Square",
+       "kind": "Former café",
+       "former_use": "cafe"
+      },
+      {
+       "id": "node/8111240749",
+       "lat": -33.8142953,
+       "lon": 151.0061275,
+       "label": "Near Launch Pad WSU Parramatta",
+       "kind": "Former café",
+       "former_use": "cafe"
+      },
+      {
+       "id": "node/8111240767",
+       "lat": -33.8140349,
+       "lon": 151.0034267,
+       "label": "Near Church Street",
+       "kind": "Former bank",
+       "former_use": "bank"
+      },
+      {
+       "id": "node/8369521694",
+       "lat": -33.8138338,
+       "lon": 151.0038788,
+       "label": "IGA Romeo's Food Hall",
+       "kind": "Former shop (supermarket)",
+       "former_use": "supermarket"
+      },
+      {
+       "id": "node/8699896545",
+       "lat": -33.8122497,
+       "lon": 151.0044189,
+       "label": "Near Church Street",
+       "kind": "Former shop (jewelry)",
+       "former_use": "jewelry"
+      },
+      {
+       "id": "node/11335014404",
+       "lat": -33.8065811,
+       "lon": 150.9875913,
+       "label": "Near Western Sydney University Westmead",
+       "kind": "Former takeaway",
+       "former_use": "fast_food"
+      },
+      {
+       "id": "node/12818441450",
+       "lat": -33.8150685,
+       "lon": 151.0034719,
+       "label": "Near Parramatta Square",
+       "kind": "Vacant shop",
+       "former_use": ""
+      },
+      {
+       "id": "node/12818530478",
+       "lat": -33.8132678,
+       "lon": 151.0036642,
+       "label": "Near Church Street",
+       "kind": "Vacant shop",
+       "former_use": ""
+      },
+      {
+       "id": "node/12818541505",
+       "lat": -33.813308,
+       "lon": 151.003987,
+       "label": "Near Church Street",
+       "kind": "Vacant shop",
+       "former_use": ""
+      },
+      {
+       "id": "node/12818542816",
+       "lat": -33.8133555,
+       "lon": 151.0039752,
+       "label": "Near Church Street",
+       "kind": "Vacant shop",
+       "former_use": ""
+      },
+      {
+       "id": "node/12818576213",
+       "lat": -33.8112782,
+       "lon": 151.004063,
+       "label": "Near Church Street",
+       "kind": "Vacant shop",
+       "former_use": ""
+      },
+      {
+       "id": "node/12818576214",
+       "lat": -33.8110973,
+       "lon": 151.0041905,
+       "label": "Near Church Street",
+       "kind": "Vacant shop",
+       "former_use": ""
+      },
+      {
+       "id": "node/12818587123",
+       "lat": -33.811549,
+       "lon": 151.0039932,
+       "label": "Near Church Street",
+       "kind": "Vacant shop",
+       "former_use": ""
+      }
+     ],
+     "notes": [
+      "Vacant shopfronts come from OpenStreetMap mappers: check each one is still available before relying on it."
+     ]
+    },
+    "settings": {
+     "lat": -33.802788,
+     "lon": 150.98709,
+     "radius": 2500.0,
+     "where": "vacant",
+     "retailOnly": false,
+     "rankBy": "revenue"
+    }
+   }
+  },
+  {
+   "t": 22.207,
+   "event": "step_done",
+   "data": {
+    "id": "toolu_01RjJ2Sb1x64yfUNWcZoVrNW",
+    "name": "find_spots",
+    "ok": true,
+    "summary": "Scored 21 candidates in 2.5 km · top: Near Woolworths Parramatta Station (Metro)",
+    "ms": 9348
+   }
+  },
+  {
+   "t": 27.525,
+   "event": "text",
+   "data": {
+    "delta": "**"
+   }
+  },
+  {
+   "t": 27.724,
+   "event": "text",
+   "data": {
+    "delta": "Not"
+   }
+  },
+  {
+   "t": 27.724,
+   "event": "text",
+   "data": {
+    "delta": " really"
+   }
+  },
+  {
+   "t": 27.725,
+   "event": "text",
+   "data": {
+    "delta": "."
+   }
+  },
+  {
+   "t": 27.725,
+   "event": "text",
+   "data": {
+    "delta": "**"
+   }
+  },
+  {
+   "t": 27.725,
+   "event": "text",
+   "data": {
+    "delta": " Only one vacant shopf"
+   }
+  },
+  {
+   "t": 27.725,
+   "event": "text",
+   "data": {
+    "delta": "ront sits within "
+   }
+  },
+  {
+   "t": 27.725,
+   "event": "text",
+   "data": {
+    "delta": "1 "
+   }
+  },
+  {
+   "t": 27.725,
+   "event": "text",
+   "data": {
+    "delta": "km of Westmead H"
+   }
+  },
+  {
+   "t": 27.725,
+   "event": "text",
+   "data": {
+    "delta": "ospital, and the"
+   }
+  },
+  {
+   "t": 27.725,
+   "event": "text",
+   "data": {
+    "delta": " model r"
+   }
+  },
+  {
+   "t": 27.886,
+   "event": "text",
+   "data": {
+    "delta": "ates it a"
+   }
+  },
+  {
+   "t": 27.886,
+   "event": "text",
+   "data": {
+    "delta": " poor b"
+   }
+  },
+  {
+   "t": 27.886,
+   "event": "text",
+   "data": {
+    "delta": "et."
+   }
+  },
+  {
+   "t": 27.886,
+   "event": "text",
+   "data": {
+    "delta": " The better"
+   }
+  },
+  {
+   "t": 27.886,
+   "event": "text",
+   "data": {
+    "delta": "-"
+   }
+  },
+  {
+   "t": 27.886,
+   "event": "text",
+   "data": {
+    "delta": "perform"
+   }
+  },
+  {
+   "t": 27.886,
+   "event": "text",
+   "data": {
+    "delta": "ing vacant"
+   }
+  },
+  {
+   "t": 27.886,
+   "event": "text",
+   "data": {
+    "delta": " sh"
+   }
+  },
+  {
+   "t": 28.05,
+   "event": "text",
+   "data": {
+    "delta": "ops"
+   }
+  },
+  {
+   "t": 28.05,
+   "event": "text",
+   "data": {
+    "delta": " are in central"
+   }
+  },
+  {
+   "t": 28.05,
+   "event": "text",
+   "data": {
+    "delta": " Parramatta,"
+   }
+  },
+  {
+   "t": 28.05,
+   "event": "text",
+   "data": {
+    "delta": " about 2 to"
+   }
+  },
+  {
+   "t": 28.05,
+   "event": "text",
+   "data": {
+    "delta": " 2.5 km away."
+   }
+  },
+  {
+   "t": 28.05,
+   "event": "text",
+   "data": {
+    "delta": "\n\n**Within"
+   }
+  },
+  {
+   "t": 28.05,
+   "event": "text",
+   "data": {
+    "delta": " 1 km of Westm"
+   }
+  },
+  {
+   "t": 28.05,
+   "event": "text",
+   "data": {
+    "delta": "ead Hospital**\n\n|"
+   }
+  },
+  {
+   "t": 28.213,
+   "event": "text",
+   "data": {
+    "delta": " Site"
+   }
+  },
+  {
+   "t": 28.213,
+   "event": "text",
+   "data": {
+    "delta": " | Type"
+   }
+  },
+  {
+   "t": 28.214,
+   "event": "text",
+   "data": {
+    "delta": " | "
+   }
+  },
+  {
+   "t": 28.214,
+   "event": "text",
+   "data": {
+    "delta": "36-m"
+   }
+  },
+  {
+   "t": 28.214,
+   "event": "text",
+   "data": {
+    "delta": "o revenue | "
+   }
+  },
+  {
+   "t": 28.214,
+   "event": "text",
+   "data": {
+    "delta": "36-mo profit | P"
+   }
+  },
+  {
+   "t": 28.214,
+   "event": "text",
+   "data": {
+    "delta": "10–P90 rev"
+   }
+  },
+  {
+   "t": 28.214,
+   "event": "text",
+   "data": {
+    "delta": "enue | Chance of "
+   }
+  },
+  {
+   "t": 28.376,
+   "event": "text",
+   "data": {
+    "delta": "36-mo loss |"
+   }
+  },
+  {
+   "t": 28.376,
+   "event": "text",
+   "data": {
+    "delta": " Est. rent |\n|---"
+   }
+  },
+  {
+   "t": 28.376,
+   "event": "text",
+   "data": {
+    "delta": "|---|---|---|---"
+   }
+  },
+  {
+   "t": 28.376,
+   "event": "text",
+   "data": {
+    "delta": "|---|---|\n|"
+   }
+  },
+  {
+   "t": 28.376,
+   "event": "text",
+   "data": {
+    "delta": " Near Western Sydney University"
+   }
+  },
+  {
+   "t": 28.376,
+   "event": "text",
+   "data": {
+    "delta": ", Westmead | Former"
+   }
+  },
+  {
+   "t": 28.376,
+   "event": "text",
+   "data": {
+    "delta": " takeaway | $792"
+   }
+  },
+  {
+   "t": 28.376,
+   "event": "text",
+   "data": {
+    "delta": "k | **"
+   }
+  },
+  {
+   "t": 28.541,
+   "event": "text",
+   "data": {
+    "delta": "-$704k** | $560"
+   }
+  },
+  {
+   "t": 28.541,
+   "event": "text",
+   "data": {
+    "delta": "k–$962"
+   }
+  },
+  {
+   "t": 28.541,
+   "event": "text",
+   "data": {
+    "delta": "k | **"
+   }
+  },
+  {
+   "t": 28.541,
+   "event": "text",
+   "data": {
+    "delta": "100%** | $6."
+   }
+  },
+  {
+   "t": 28.541,
+   "event": "text",
+   "data": {
+    "delta": "5k/mo |\n\n**"
+   }
+  },
+  {
+   "t": 28.541,
+   "event": "text",
+   "data": {
+    "delta": "Within"
+   }
+  },
+  {
+   "t": 28.541,
+   "event": "text",
+   "data": {
+    "delta": " 2.5 km (m"
+   }
+  },
+  {
+   "t": 28.541,
+   "event": "text",
+   "data": {
+    "delta": "ostly Parramatta C"
+   }
+  },
+  {
+   "t": 28.706,
+   "event": "text",
+   "data": {
+    "delta": "BD,"
+   }
+  },
+  {
+   "t": 28.706,
+   "event": "text",
+   "data": {
+    "delta": " not"
+   }
+  },
+  {
+   "t": 28.706,
+   "event": "text",
+   "data": {
+    "delta": " Westmead)**\n\n|"
+   }
+  },
+  {
+   "t": 28.706,
+   "event": "text",
+   "data": {
+    "delta": " Site | Type | 36"
+   }
+  },
+  {
+   "t": 28.706,
+   "event": "text",
+   "data": {
+    "delta": "-mo revenue | "
+   }
+  },
+  {
+   "t": 28.706,
+   "event": "text",
+   "data": {
+    "delta": "36-mo profit | P"
+   }
+  },
+  {
+   "t": 28.706,
+   "event": "text",
+   "data": {
+    "delta": "10–P90 revenue"
+   }
+  },
+  {
+   "t": 28.706,
+   "event": "text",
+   "data": {
+    "delta": " | Chance of 36-"
+   }
+  },
+  {
+   "t": 28.866,
+   "event": "text",
+   "data": {
+    "delta": "mo loss | Est."
+   }
+  },
+  {
+   "t": 28.866,
+   "event": "text",
+   "data": {
+    "delta": " rent |\n|---|---"
+   }
+  },
+  {
+   "t": 28.866,
+   "event": "text",
+   "data": {
+    "delta": "|---|---|---|---"
+   }
+  },
+  {
+   "t": 28.866,
+   "event": "text",
+   "data": {
+    "delta": "|---|\n| Near"
+   }
+  },
+  {
+   "t": 28.866,
+   "event": "text",
+   "data": {
+    "delta": " Parramatta Station ("
+   }
+  },
+  {
+   "t": 28.866,
+   "event": "text",
+   "data": {
+    "delta": "Wo"
+   }
+  },
+  {
+   "t": 28.866,
+   "event": "text",
+   "data": {
+    "delta": "olworths/"
+   }
+  },
+  {
+   "t": 28.866,
+   "event": "text",
+   "data": {
+    "delta": "Metro) | Vac"
+   }
+  },
+  {
+   "t": 29.028,
+   "event": "text",
+   "data": {
+    "delta": "ant shop | $2.68"
+   }
+  },
+  {
+   "t": 29.028,
+   "event": "text",
+   "data": {
+    "delta": "M | $242k | $1"
+   }
+  },
+  {
+   "t": 29.029,
+   "event": "text",
+   "data": {
+    "delta": ".97M–$3.39"
+   }
+  },
+  {
+   "t": 29.029,
+   "event": "text",
+   "data": {
+    "delta": "M | 33"
+   }
+  },
+  {
+   "t": 29.029,
+   "event": "text",
+   "data": {
+    "delta": "% | $16"
+   }
+  },
+  {
+   "t": 29.029,
+   "event": "text",
+   "data": {
+    "delta": ".9k/mo |"
+   }
+  },
+  {
+   "t": 29.029,
+   "event": "text",
+   "data": {
+    "delta": "\n| Near Church St"
+   }
+  },
+  {
+   "t": 29.029,
+   "event": "text",
+   "data": {
+    "delta": " (B) | Former"
+   }
+  },
+  {
+   "t": 29.197,
+   "event": "text",
+   "data": {
+    "delta": " jewell"
+   }
+  },
+  {
+   "t": 29.197,
+   "event": "text",
+   "data": {
+    "delta": "ery shop | $2.05"
+   }
+  },
+  {
+   "t": 29.197,
+   "event": "text",
+   "data": {
+    "delta": "M | $71"
+   }
+  },
+  {
+   "t": 29.197,
+   "event": "text",
+   "data": {
+    "delta": "k | $1.35"
+   }
+  },
+  {
+   "t": 29.197,
+   "event": "text",
+   "data": {
+    "delta": "M–$2.78M |"
+   }
+  },
+  {
+   "t": 29.198,
+   "event": "text",
+   "data": {
+    "delta": " 51% | $9"
+   }
+  },
+  {
+   "t": 29.198,
+   "event": "text",
+   "data": {
+    "delta": ".5k/mo |"
+   }
+  },
+  {
+   "t": 29.198,
+   "event": "text",
+   "data": {
+    "delta": "\n| Near Church St (C"
+   }
+  },
+  {
+   "t": 29.356,
+   "event": "text",
+   "data": {
+    "delta": ") | Vacant shop"
+   }
+  },
+  {
+   "t": 29.357,
+   "event": "text",
+   "data": {
+    "delta": " | $1.93M | -"
+   }
+  },
+  {
+   "t": 29.357,
+   "event": "text",
+   "data": {
+    "delta": "$55k | $1.30"
+   }
+  },
+  {
+   "t": 29.357,
+   "event": "text",
+   "data": {
+    "delta": "M–$2.58M |"
+   }
+  },
+  {
+   "t": 29.357,
+   "event": "text",
+   "data": {
+    "delta": " 64% | $10.6"
+   }
+  },
+  {
+   "t": 29.357,
+   "event": "text",
+   "data": {
+    "delta": "k/mo |\n|"
+   }
+  },
+  {
+   "t": 29.357,
+   "event": "text",
+   "data": {
+    "delta": " Near Church St (D) |"
+   }
+  },
+  {
+   "t": 29.357,
+   "event": "text",
+   "data": {
+    "delta": " V"
+   }
+  },
+  {
+   "t": 29.523,
+   "event": "text",
+   "data": {
+    "delta": "acant shop | $1."
+   }
+  },
+  {
+   "t": 29.523,
+   "event": "text",
+   "data": {
+    "delta": "92M | -$63k |"
+   }
+  },
+  {
+   "t": 29.523,
+   "event": "text",
+   "data": {
+    "delta": " $1.29"
+   }
+  },
+  {
+   "t": 29.523,
+   "event": "text",
+   "data": {
+    "delta": "M–$2.56M |"
+   }
+  },
+  {
+   "t": 29.523,
+   "event": "text",
+   "data": {
+    "delta": " 64% | $10.5"
+   }
+  },
+  {
+   "t": 29.523,
+   "event": "text",
+   "data": {
+    "delta": "k/mo |"
+   }
+  },
+  {
+   "t": 29.523,
+   "event": "text",
+   "data": {
+    "delta": "\n\n- The"
+   }
+  },
+  {
+   "t": 29.523,
+   "event": "text",
+   "data": {
+    "delta": " Parramatta"
+   }
+  },
+  {
+   "t": 29.685,
+   "event": "text",
+   "data": {
+    "delta": " Station site has"
+   }
+  },
+  {
+   "t": 29.685,
+   "event": "text",
+   "data": {
+    "delta": " the highest revenue and the"
+   }
+  },
+  {
+   "t": 29.685,
+   "event": "text",
+   "data": {
+    "delta": " only"
+   }
+  },
+  {
+   "t": 29.685,
+   "event": "text",
+   "data": {
+    "delta": " cl"
+   }
+  },
+  {
+   "t": 29.685,
+   "event": "text",
+   "data": {
+    "delta": "ear"
+   }
+  },
+  {
+   "t": 29.685,
+   "event": "text",
+   "data": {
+    "delta": "ly positive profit, but its"
+   }
+  },
+  {
+   "t": 29.685,
+   "event": "text",
+   "data": {
+    "delta": " rent is high"
+   }
+  },
+  {
+   "t": 29.685,
+   "event": "text",
+   "data": {
+    "delta": " and"
+   }
+  },
+  {
+   "t": 29.854,
+   "event": "text",
+   "data": {
+    "delta": " its lo"
+   }
+  },
+  {
+   "t": 29.854,
+   "event": "text",
+   "data": {
+    "delta": "ss chance is still about one in"
+   }
+  },
+  {
+   "t": 29.854,
+   "event": "text",
+   "data": {
+    "delta": " three.\n- The Church St"
+   }
+  },
+  {
+   "t": 29.854,
+   "event": "text",
+   "data": {
+    "delta": " sites are c"
+   }
+  },
+  {
+   "t": 29.854,
+   "event": "text",
+   "data": {
+    "delta": "heaper per"
+   }
+  },
+  {
+   "t": 29.854,
+   "event": "text",
+   "data": {
+    "delta": " month but are marginal on prof"
+   }
+  },
+  {
+   "t": 29.854,
+   "event": "text",
+   "data": {
+    "delta": "it."
+   }
+  },
+  {
+   "t": 29.854,
+   "event": "text",
+   "data": {
+    "delta": "\n- The"
+   }
+  },
+  {
+   "t": 30.01,
+   "event": "text",
+   "data": {
+    "delta": " West"
+   }
+  },
+  {
+   "t": 30.01,
+   "event": "text",
+   "data": {
+    "delta": "mead site is the only"
+   }
+  },
+  {
+   "t": 30.01,
+   "event": "text",
+   "data": {
+    "delta": " one"
+   }
+  },
+  {
+   "t": 30.01,
+   "event": "text",
+   "data": {
+    "delta": " near the"
+   }
+  },
+  {
+   "t": 30.01,
+   "event": "text",
+   "data": {
+    "delta": " hospital, and"
+   }
+  },
+  {
+   "t": 30.01,
+   "event": "text",
+   "data": {
+    "delta": " the"
+   }
+  },
+  {
+   "t": 30.01,
+   "event": "text",
+   "data": {
+    "delta": " model does"
+   }
+  },
+  {
+   "t": 30.01,
+   "event": "text",
+   "data": {
+    "delta": " not favour it.\n\n**"
+   }
+  },
+  {
+   "t": 30.173,
+   "event": "text",
+   "data": {
+    "delta": "Caveats**"
+   }
+  },
+  {
+   "t": 30.173,
+   "event": "text",
+   "data": {
+    "delta": "\n- Vacant shop"
+   }
+  },
+  {
+   "t": 30.173,
+   "event": "text",
+   "data": {
+    "delta": "fronts come from Open"
+   }
+  },
+  {
+   "t": 30.173,
+   "event": "text",
+   "data": {
+    "delta": "StreetMap map"
+   }
+  },
+  {
+   "t": 30.173,
+   "event": "text",
+   "data": {
+    "delta": "per data"
+   }
+  },
+  {
+   "t": 30.173,
+   "event": "text",
+   "data": {
+    "delta": ", not listings. Each"
+   }
+  },
+  {
+   "t": 30.173,
+   "event": "text",
+   "data": {
+    "delta": " one needs checking for"
+   }
+  },
+  {
+   "t": 30.173,
+   "event": "text",
+   "data": {
+    "delta": " availability before you"
+   }
+  },
+  {
+   "t": 30.339,
+   "event": "text",
+   "data": {
+    "delta": " r"
+   }
+  },
+  {
+   "t": 30.339,
+   "event": "text",
+   "data": {
+    "delta": "ely on it.\n- The model"
+   }
+  },
+  {
+   "t": 30.339,
+   "event": "text",
+   "data": {
+    "delta": "'s"
+   }
+  },
+  {
+   "t": 30.339,
+   "event": "text",
+   "data": {
+    "delta": " acc"
+   }
+  },
+  {
+   "t": 30.339,
+   "event": "text",
+   "data": {
+    "delta": "uracy is not stat"
+   }
+  },
+  {
+   "t": 30.339,
+   "event": "text",
+   "data": {
+    "delta": "istically clear"
+   }
+  },
+  {
+   "t": 30.339,
+   "event": "text",
+   "data": {
+    "delta": "ly better than plain foot tra"
+   }
+  },
+  {
+   "t": 30.339,
+   "event": "text",
+   "data": {
+    "delta": "ffic in"
+   }
+  },
+  {
+   "t": 30.505,
+   "event": "text",
+   "data": {
+    "delta": " back"
+   }
+  },
+  {
+   "t": 30.506,
+   "event": "text",
+   "data": {
+    "delta": "tests, so tre"
+   }
+  },
+  {
+   "t": 30.506,
+   "event": "text",
+   "data": {
+    "delta": "at these as a structured compar"
+   }
+  },
+  {
+   "t": 30.506,
+   "event": "text",
+   "data": {
+    "delta": "ison, not a for"
+   }
+  },
+  {
+   "t": 30.506,
+   "event": "text",
+   "data": {
+    "delta": "ecast.\n\nI"
+   }
+  },
+  {
+   "t": 30.506,
+   "event": "text",
+   "data": {
+    "delta": " can"
+   }
+  },
+  {
+   "t": 30.506,
+   "event": "text",
+   "data": {
+    "delta": " run a head"
+   }
+  },
+  {
+   "t": 30.506,
+   "event": "text",
+   "data": {
+    "delta": "-to-head simulation on"
+   }
+  },
+  {
+   "t": 30.665,
+   "event": "text",
+   "data": {
+    "delta": " the Parramatta Station"
+   }
+  },
+  {
+   "t": 30.665,
+   "event": "text",
+   "data": {
+    "delta": " and Church St B"
+   }
+  },
+  {
+   "t": 30.666,
+   "event": "text",
+   "data": {
+    "delta": " sites, or search"
+   }
+  },
+  {
+   "t": 30.666,
+   "event": "text",
+   "data": {
+    "delta": " around"
+   }
+  },
+  {
+   "t": 30.666,
+   "event": "text",
+   "data": {
+    "delta": " Westmead with"
+   }
+  },
+  {
+   "t": 30.666,
+   "event": "text",
+   "data": {
+    "delta": " a wider radius for"
+   }
+  },
+  {
+   "t": 30.666,
+   "event": "text",
+   "data": {
+    "delta": " non-v"
+   }
+  },
+  {
+   "t": 30.666,
+   "event": "text",
+   "data": {
+    "delta": "acant s"
+   }
+  },
+  {
+   "t": 30.68,
+   "event": "text",
+   "data": {
+    "delta": "ites."
+   }
+  },
+  {
+   "t": 30.682,
+   "event": "done",
+   "data": {
+    "steps": 3
+   }
+  }
+ ]
+}

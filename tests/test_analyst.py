@@ -10,7 +10,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from sitescore.analyst import Toolbox, ToolCall, ToolError, Turn, Workspace, run_analyst
+from sitescore.analyst import Toolbox, ToolCall, ToolError, Turn, Workspace, replay, run_analyst
 from sitescore.analyst.tools import TOOL_SPECS
 from sitescore.api.deps import get_store
 from sitescore.api.main import app
@@ -146,13 +146,89 @@ def test_chat_endpoint_streams_events(mock_store):
         app.dependency_overrides.clear()
 
 
-def test_chat_endpoint_without_key_says_how_to_enable(mock_store):
+def test_chat_endpoint_without_key_says_how_to_enable(mock_store, tmp_path, monkeypatch):
+    monkeypatch.setattr(replay, "REPLAY_DIR", tmp_path)  # no recordings either: the analyst is off
     app.dependency_overrides[get_store] = lambda: mock_store
     app.dependency_overrides[get_chat_model] = lambda: None
     try:
         with TestClient(app) as c:
-            assert c.get("/api/analyst/status").json()["enabled"] is False
+            status = c.get("/api/analyst/status").json()
+            assert status["enabled"] is False and status["mode"] == "off"
             resp = c.post("/api/analyst/chat", json={"question": "hi"})
             assert resp.status_code == 503 and "OPENROUTER_API_KEY" in resp.json()["detail"]
+    finally:
+        app.dependency_overrides.clear()
+
+
+# --- Recorded runs (the hosted demo, no key) -------------------------------------------
+
+
+def _recording(directory, question="Best café near Parramatta station?", business_type="cafe"):
+    events = [
+        {"t": 0.0, "event": "status", "data": {"model": "test/m"}},
+        {"t": 2.5, "event": "step", "data": {"id": "c0", "name": "find_spots", "label": "Searching"}},
+        {"t": 11.0, "event": "step_done", "data": {"id": "c0", "name": "find_spots", "ok": True, "summary": "5 spots", "ms": 8500}},
+        {"t": 11.2, "event": "ui", "data": {"type": "focus", "lat": -33.8, "lon": 151.0, "label": "X"}},
+        {"t": 14.0, "event": "text", "data": {"delta": "Near X wins."}},
+        {"t": 14.1, "event": "done", "data": {"steps": 1}},
+    ]
+    directory.mkdir(exist_ok=True)
+    (directory / f"{replay.slug(question)}.json").write_text(json.dumps(
+        {"question": question, "business_type": business_type, "model": "test/m", "recorded_on": "2026-10-17",
+         "events": events}), encoding="utf-8")
+
+
+def test_recordings_match_loosely_and_by_business_type(tmp_path):
+    _recording(tmp_path)
+    assert replay.find("best CAFÉ near   parramatta station", directory=tmp_path) is not None
+    assert replay.find("Best café near Parramatta station?", "gym", directory=tmp_path) is None
+    assert replay.find("Something else entirely", directory=tmp_path) is None
+
+
+def test_replay_keeps_order_and_shortens_the_waits(tmp_path):
+    _recording(tmp_path)
+    rec = replay.find("Best café near Parramatta station?", directory=tmp_path)
+    waits: list[float] = []
+    events = list(replay.replay(rec, sleep=waits.append))
+    assert [n for n, _ in events] == [e["event"] for e in rec.events]
+    assert events[0][1]["replay"]["recorded_on"] == "2026-10-17"
+    assert events[2][1]["ms"] == 8500                      # the real duration is still reported
+    assert max(waits) <= replay.MAX_STEP_GAP_S and sum(waits) < 3  # 14 s recorded, ~2 s replayed
+
+
+def test_without_a_key_recorded_questions_replay_and_others_are_turned_away(mock_store, tmp_path, monkeypatch):
+    monkeypatch.setattr(replay, "REPLAY_DIR", tmp_path)
+    monkeypatch.setattr(replay, "MAX_STEP_GAP_S", 0)
+    monkeypatch.setattr(replay, "MAX_OTHER_GAP_S", 0)
+    _recording(tmp_path)
+    app.dependency_overrides[get_store] = lambda: mock_store
+    app.dependency_overrides[get_chat_model] = lambda: None
+    try:
+        with TestClient(app) as c:
+            status = c.get("/api/analyst/status").json()
+            assert status["mode"] == "replay" and status["enabled"] is False
+            assert status["replays"] == [{"question": "Best café near Parramatta station?",
+                                          "business_type": "cafe", "recorded_on": "2026-10-17"}]
+            resp = c.post("/api/analyst/chat", json={"question": "best café near parramatta station",
+                                                     "workspace": {"business_type": "cafe"}})
+            names = [line[7:] for line in resp.text.splitlines() if line.startswith("event: ")]
+            assert resp.status_code == 200 and names == ["status", "step", "step_done", "ui", "text", "done"]
+            other = c.post("/api/analyst/chat", json={"question": "What about Rosehill?"})
+            assert other.status_code == 409 and "OPENROUTER_API_KEY" in other.json()["detail"]
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_a_live_model_ignores_recordings(mock_store, tmp_path, monkeypatch):
+    monkeypatch.setattr(replay, "REPLAY_DIR", tmp_path)
+    _recording(tmp_path)
+    app.dependency_overrides[get_store] = lambda: mock_store
+    app.dependency_overrides[get_chat_model] = lambda: ScriptedModel([("Live answer.", [])])
+    try:
+        with TestClient(app) as c:
+            status = c.get("/api/analyst/status").json()
+            assert status["mode"] == "live" and status["replays"] == []
+            resp = c.post("/api/analyst/chat", json={"question": "Best café near Parramatta station?"})
+            assert '"model": "test/scripted"' in resp.text and "find_spots" not in resp.text
     finally:
         app.dependency_overrides.clear()

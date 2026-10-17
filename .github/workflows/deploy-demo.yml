@@ -1,0 +1,41 @@
+name: Deploy demo
+
+# Every push to main redeploys the live demo on Hugging Face Spaces; Hugging Face then
+# builds the Dockerfile. Set up once: a write token as the HF_TOKEN secret and the Space
+# ("username/name") as the HF_SPACE variable. Until then this job just says so and passes.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-demo
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Hugging Face Spaces
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE: ${{ vars.HF_SPACE }}
+    steps:
+      - name: Not set up yet
+        if: env.HF_TOKEN == '' || env.HF_SPACE == ''
+        run: echo "::notice::Demo not deployed. Add the HF_TOKEN secret and the HF_SPACE variable (e.g. yourname/sitescore) to deploy it."
+      - uses: actions/checkout@v7
+        if: env.HF_TOKEN != '' && env.HF_SPACE != ''
+      - uses: actions/setup-python@v7
+        if: env.HF_TOKEN != '' && env.HF_SPACE != ''
+        with:
+          python-version: "3.12"
+      - name: Upload to the Space
+        if: env.HF_TOKEN != '' && env.HF_SPACE != ''
+        run: |
+          pip install "huggingface_hub>=0.30"
+          python deploy/space/deploy.py

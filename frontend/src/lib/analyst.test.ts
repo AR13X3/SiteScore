@@ -44,3 +44,19 @@ test("errors stop the spinner", () => {
   assert.equal(msg.error, "OpenRouter 401");
   assert.equal(msg.pending, false);
 });
+
+test("recorded questions match the way the server matches them", async () => {
+  const { findReplay } = await import("./analyst.ts");
+  const status = {
+    enabled: false, mode: "replay" as const, model: "m", provider: "OpenRouter",
+    replays: [{ question: "Find the best café spot within 1 km of Parramatta station, ranked by profit", business_type: "cafe", recorded_on: "2026-10-17" }],
+  };
+  assert.ok(findReplay(status, "find the BEST café spot within 1 km of Parramatta station ranked by profit!", "cafe"));
+  assert.equal(findReplay(status, "Find the best café spot within 1 km of Parramatta station, ranked by profit", "gym"), undefined);
+  assert.equal(findReplay(status, "Best café spot near Rosehill", "cafe"), undefined);
+});
+
+test("a replayed run is marked as recorded", () => {
+  const msg = play([{ event: "status", data: { model: "m", replay: { recorded_on: "2026-10-17", model: "m" } } }]);
+  assert.deepEqual(msg.recorded, { on: "2026-10-17", model: "m" });
+});

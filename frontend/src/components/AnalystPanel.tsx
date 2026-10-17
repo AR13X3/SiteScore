@@ -6,14 +6,18 @@ import {
   type Step,
   type UiAction,
   type WorkspaceContext,
+  analystMode,
   applyEvent,
   askAnalyst,
   briefMarkdown,
+  findReplay,
   messageText,
 } from "../lib/analyst";
-import { OPENROUTER_KEYS_URL } from "../lib/project";
+import { OPENROUTER_KEYS_URL, REPO_URL } from "../lib/project";
 import {
   IconArrowRight,
+  IconArrowUpRight,
+  IconGithub,
   IconChat,
   IconCheck,
   IconCopy,
@@ -29,6 +33,8 @@ import { Markdown } from "./Markdown";
 
 interface Props {
   status: AnalystStatus | null;
+  /** Business type id: recorded runs exist per type. */
+  businessType: string;
   businessName: string;
   siteCount: number;
   getWorkspace: () => WorkspaceContext;
@@ -58,7 +64,9 @@ function suggestions(business: string, siteCount: number): string[] {
   ];
 }
 
-export function AnalystPanel({ status, businessName, siteCount, getWorkspace, onAction, incoming }: Props) {
+export function AnalystPanel({ status, businessType, businessName, siteCount, getWorkspace, onAction, incoming }: Props) {
+  const mode = analystMode(status);
+  const recorded = (status?.replays ?? []).filter((r) => r.business_type === businessType).map((r) => r.question);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -78,12 +86,21 @@ export function AnalystPanel({ status, businessName, siteCount, getWorkspace, on
   const send = useCallback(
     async (question: string) => {
       const q = question.trim();
-      if (!q || busy || !status?.enabled) return;
+      if (!q || busy || !mode || mode === "off") return;
       const history = messagesRef.current
         .filter((m) => !m.error)
         .map((m) => ({ role: m.role, content: messageText(m) }))
         .filter((m) => m.content);
       const user: ChatMessage = { id: msgId(), role: "user", parts: [{ kind: "text", text: q }] };
+      // The hosted demo has no model: anything it hasn't recorded gets the "run it yourself" card.
+      if (mode === "replay" && !findReplay(status, q, getWorkspace().business_type)) {
+        const card: ChatMessage = { id: msgId(), role: "assistant", parts: [{ kind: "byok", question: q }] };
+        setMessages((prev) => [...prev, user, card]);
+        setDraft("");
+        if (input.current) input.current.style.height = "auto";
+        stick.current = true;
+        return;
+      }
       const reply: ChatMessage = { id: msgId(), role: "assistant", parts: [], pending: true };
       setMessages((prev) => [...prev, user, reply]);
       setDraft("");
@@ -113,15 +130,15 @@ export function AnalystPanel({ status, businessName, siteCount, getWorkspace, on
         abort.current = null;
       }
     },
-    [busy, status, getWorkspace, onAction],
+    [busy, mode, status, getWorkspace, onAction],
   );
 
   const lastIncoming = useRef<number | null>(null);
   useEffect(() => {
-    if (!incoming || incoming.key === lastIncoming.current || !status?.enabled) return;
+    if (!incoming || incoming.key === lastIncoming.current || !mode || mode === "off") return;
     lastIncoming.current = incoming.key;
     void send(incoming.question);
-  }, [incoming, status, send]);
+  }, [incoming, mode, send]);
 
   const reset = () => {
     abort.current?.abort();
@@ -129,13 +146,13 @@ export function AnalystPanel({ status, businessName, siteCount, getWorkspace, on
     input.current?.focus();
   };
 
-  if (status && !status.enabled) return <AnalystOff model={status.model} />;
+  if (status && mode === "off") return <AnalystOff model={status.model} />;
 
   return (
     <div className="analyst">
       <div className="analyst__head">
         <div className="analyst__title">
-          <span className="muted small">Model</span>
+          <span className="muted small">{mode === "replay" ? "Recorded" : "Model"}</span>
           <span className="analyst__model">{status ? status.model : "connecting…"}</span>
         </div>
         {messages.length > 0 && (
@@ -154,7 +171,31 @@ export function AnalystPanel({ status, businessName, siteCount, getWorkspace, on
         }}
         aria-live="polite"
       >
-        {messages.length === 0 ? (
+        {messages.length === 0 && mode === "replay" ? (
+          <div className="analyst__intro">
+            <span className="mono analyst__kicker">demo/recorded_runs</span>
+            <h3>Watch the analyst work</h3>
+            <p className="muted small">
+              This hosted demo doesn't call a language model. Pick a question to replay a real run: every step, map
+              action and the decision brief, exactly as the analyst produced them. Ask anything else to see how to run
+              your own.
+            </p>
+            {recorded.length > 0 ? (
+              <ul className="suggestions">
+                {recorded.map((s) => (
+                  <li key={s}>
+                    <button className="suggestion" onClick={() => send(s)}>
+                      <span>{s}</span>
+                      <IconArrowRight size={14} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted small">The recordings are for cafés: switch the business type to Café to watch one.</p>
+            )}
+          </div>
+        ) : messages.length === 0 ? (
           <div className="analyst__intro">
             <h3>Ask a location question</h3>
             <p className="muted small">
@@ -174,7 +215,7 @@ export function AnalystPanel({ status, businessName, siteCount, getWorkspace, on
             </ul>
           </div>
         ) : (
-          messages.map((m) => <Message key={m.id} msg={m} onAction={onAction} />)
+          messages.map((m) => <Message key={m.id} msg={m} onAction={onAction} recorded={recorded} onPick={send} />)
         )}
       </div>
 
@@ -189,7 +230,7 @@ export function AnalystPanel({ status, businessName, siteCount, getWorkspace, on
           ref={input}
           value={draft}
           rows={1}
-          placeholder={busy ? "Working…" : "Ask a question…"}
+          placeholder={busy ? "Working…" : mode === "replay" ? "Ask your own question…" : "Ask a question…"}
           onChange={(e) => {
             setDraft(e.target.value);
             e.target.style.height = "auto";
@@ -218,7 +259,12 @@ export function AnalystPanel({ status, businessName, siteCount, getWorkspace, on
   );
 }
 
-function Message({ msg, onAction }: { msg: ChatMessage; onAction: (a: UiAction) => void }) {
+function Message({ msg, onAction, recorded, onPick }: {
+  msg: ChatMessage;
+  onAction: (a: UiAction) => void;
+  recorded: string[];
+  onPick: (question: string) => void;
+}) {
   if (msg.role === "user") {
     return (
       <div className="msg msg--user">
@@ -230,11 +276,19 @@ function Message({ msg, onAction }: { msg: ChatMessage; onAction: (a: UiAction) 
   const running = msg.parts.some((p) => p.kind === "steps" && p.steps.some((s) => s.status === "running"));
   return (
     <div className="msg msg--ai">
+      {msg.recorded && (
+        <span className="recorded-tag mono">
+          recorded_run · {new Date(`${msg.recorded.on}T00:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+          {msg.recorded.model && ` · ${msg.recorded.model}`}
+        </span>
+      )}
       {msg.parts.map((p, i) =>
         p.kind === "text" ? (
           <Markdown key={i} text={p.text} />
         ) : p.kind === "steps" ? (
           <Steps key={i} steps={p.steps} />
+        ) : p.kind === "byok" ? (
+          <ByokCard key={i} recorded={recorded} onPick={onPick} />
         ) : (
           <BriefCard key={i} brief={p.brief} onAction={onAction} />
         ),
@@ -352,6 +406,79 @@ function BriefList({ title, items }: { title: string; items: string[] }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+const RUN_LOCALLY = `git clone ${REPO_URL}.git
+cd SiteScore
+python run.py install
+# then put OPENROUTER_API_KEY=sk-or-... in .env (copy .env.example)
+python run.py start`;
+
+/** The hosted demo can't answer a new question: here's how to run SiteScore with your own key. */
+function ByokCard({ recorded, onPick }: { recorded: string[]; onPick: (q: string) => void }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(RUN_LOCALLY);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // clipboard blocked: the commands are on screen
+    }
+  };
+  return (
+    <article className="byok">
+      <span className="mono byok__kicker">run_it_yourself/</span>
+      <h3>Ask your own questions on your machine</h3>
+      <p className="muted small">
+        This hosted demo doesn't call a language model, so it can only replay recorded runs. Run SiteScore locally with
+        your own OpenRouter key (any tool-calling model; about a cent per question) and the analyst will answer anything.
+      </p>
+      <ol className="byok__steps">
+        <li>
+          <span>Get the code and install</span>
+          <code>git clone {REPO_URL}.git</code>
+          <code>cd SiteScore &amp;&amp; python run.py install</code>
+        </li>
+        <li>
+          <span>
+            Add your key to <code>.env</code>
+          </span>
+          <code>OPENROUTER_API_KEY=sk-or-…</code>
+        </li>
+        <li>
+          <span>Start it</span>
+          <code>python run.py start</code>
+        </li>
+      </ol>
+      <div className="byok__actions">
+        <a className="btn btn--small btn--accent" href={REPO_URL} target="_blank" rel="noreferrer">
+          <IconGithub size={14} /> Get the code
+        </a>
+        <a className="btn btn--small" href={OPENROUTER_KEYS_URL} target="_blank" rel="noreferrer">
+          Get a key <IconArrowUpRight size={14} />
+        </a>
+        <button className="btn btn--small btn--ghost" onClick={copy}>
+          {copied ? <IconCheck size={14} /> : <IconCopy size={14} />} {copied ? "Copied" : "Copy commands"}
+        </button>
+      </div>
+      {recorded.length > 0 && (
+        <>
+          <span className="mono byok__kicker">or_watch_a_recorded_run/</span>
+          <ul className="suggestions">
+            {recorded.map((s) => (
+              <li key={s}>
+                <button className="suggestion" onClick={() => onPick(s)}>
+                  <span>{s}</span>
+                  <IconArrowRight size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </article>
   );
 }
 

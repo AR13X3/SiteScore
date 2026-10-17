@@ -559,6 +559,7 @@ export function WorkspaceView({ region, businessType, businessName, asOf, dark, 
           <div className="col__fill" hidden={panel !== "analyst"}>
             <AnalystPanel
               status={analyst}
+              businessType={businessType}
               businessName={businessName}
               siteCount={sites.length}
               getWorkspace={getWorkspace}
