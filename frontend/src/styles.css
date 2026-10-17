@@ -1619,3 +1619,28 @@ kbd {
 .byok__steps li::before { content: counter(byok, decimal-leading-zero); grid-row: span 3; font: 500 10.5px/1.6 var(--mono); color: var(--signal); }
 .byok__steps li > code { justify-self: start; max-width: 100%; white-space: normal; overflow-wrap: anywhere; font-size: 11.5px; }
 .byok__actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ---- Server offline: the maintenance page and the mid-visit bar ------------------- */
+.maintenance { min-height: calc(100vh - var(--topbar-h) - 32px); display: flex; align-items: center; }
+.maintenance__main { display: flex; flex-direction: column; gap: 16px; max-width: 760px; padding: 24px 0 64px; }
+.maintenance__title { font-size: clamp(34px, 5vw, 64px); max-width: 16ch; }
+.maintenance__lede { margin: 0; max-width: 60ch; font-size: 16px; color: var(--text-secondary); }
+.maintenance__status {
+  display: inline-flex; align-items: center; gap: 10px; align-self: flex-start; padding: 8px 12px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 12px; color: var(--text-secondary);
+}
+.maintenance__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--signal); flex: none; animation: blink 2s steps(1) infinite; }
+.maintenance__dot.is-checking { animation: pulse 0.8s ease-in-out infinite; }
+.maintenance__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.offline-bar {
+  position: sticky; top: var(--topbar-h); z-index: 1400; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px;
+  padding: 9px 24px; background: var(--ink); color: var(--ink-text); font-size: 13px;
+}
+.offline-bar strong { font-weight: 600; }
+.offline-bar__next { font-size: 11.5px; color: var(--ink-muted); }
+.offline-bar__retry {
+  margin-left: auto; font-size: 11.5px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  background: transparent; color: var(--ink-text); border: 1px solid var(--ink-muted);
+}
+.offline-bar__retry:hover { border-color: var(--signal); color: var(--signal); }
+@media (prefers-reduced-motion: reduce) { .maintenance__dot { animation: none; } }

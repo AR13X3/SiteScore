@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -58,6 +59,11 @@ def _warm(store, heatmap: bool, evidence: bool) -> None:
 
 
 app = FastAPI(title="SiteScore", version=__version__, lifespan=lifespan)
+# The GitHub Pages site calls this API from another origin; only the listed ones may.
+_origins = [o.strip().rstrip("/") for o in get_settings().cors_origins.split(",") if o.strip()]
+if _origins:
+    app.add_middleware(CORSMiddleware, allow_origins=_origins, allow_methods=["GET", "POST"],
+                       allow_headers=["Content-Type"], max_age=600)
 app.include_router(routes_meta.router)
 app.include_router(routes_model.router)
 app.include_router(routes_backtest.router)

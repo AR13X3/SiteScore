@@ -19,15 +19,21 @@ If the repo is inside OneDrive or Dropbox, the virtualenv and raw downloads go t
 
 ## The live demo
 
-The demo runs the app in one Docker container (`Dockerfile`) on a free [Hugging Face Space](https://huggingface.co/spaces). Every push to `main` redeploys it (`.github/workflows/deploy-demo.yml`), and the `Demo container` CI job builds and smoke-tests the same image on every pull request. The container runs on the committed demo pack, warms the map and the Evidence page at startup, and has no model key, so the analyst [replays recorded runs](analyst.md#recorded-runs-the-hosted-demo).
+The live site has two halves:
 
-To set it up once:
+- **The site** is the frontend on GitHub Pages: https://ar13x3.github.io/SiteScore/. `.github/workflows/pages.yml` builds it on every push to `main`, with `VITE_API_BASE` pointing at the API.
+- **The API** is the Docker image (`Dockerfile`) running on Joy's own server, made public through Tailscale Funnel (port 10000 only). `deploy/self-host/update.sh` runs from cron every 5 minutes: when `main` has moved it rebuilds the image and swaps the container. `SITESCORE_CORS_ORIGINS` lets the Pages site call it from the browser.
 
-1. Create a free Hugging Face account and a **write** token (Settings → Access Tokens).
-2. In the GitHub repository's **Settings → Secrets and variables → Actions**, add the secret `HF_TOKEN` (the token) and the variable `HF_SPACE` (for example `yourname/sitescore`).
-3. Run **Actions → Deploy demo → Run workflow**, or push to `main`. The first run creates the Space; Hugging Face then builds the image (about 5 minutes) and serves it at `https://yourname-sitescore.hf.space`.
+If the API can't be reached, the site shows a maintenance page ("Joy's server is offline and under maintenance") that checks every 30 seconds and comes back by itself. If the API drops mid-visit, a bar says so. The container has no model key, so the analyst [replays recorded runs](analyst.md#recorded-runs-the-hosted-demo). The `Demo container` CI job builds and smoke-tests the image on every pull request.
 
-Free Spaces sleep after about two days without visitors and take a minute or so to wake. To run the same container yourself: `docker build -t sitescore . && docker run -p 7860:7860 sitescore`, then open http://localhost:7860. Add `-e OPENROUTER_API_KEY=...` for a live analyst, but only behind authentication if it's public.
+To host the API yourself on any machine with Docker:
+
+```bash
+git clone https://github.com/AR13X3/SiteScore.git && cd SiteScore
+SITESCORE_CORS_ORIGINS=https://yourname.github.io deploy/self-host/update.sh   # builds and starts it on 127.0.0.1:7860
+```
+
+Then make it public (Tailscale Funnel, a Cloudflare tunnel or a reverse proxy), point `VITE_API_BASE` in `pages.yml` at it, and add the cron line from the top of `update.sh`. To run everything in one container without Pages: `docker run -p 7860:7860 sitescore` serves the site and the API together.
 
 ## Configuration
 
@@ -57,5 +63,5 @@ data/demo-pack/  snapshot of the processed real data (loaded on a fresh clone)
 data/analyst-replays/  recorded analyst runs, replayed when no model key is set
 data/raw/        Google Places cache and request ledger (gitignored, never committed)
 tests/
-deploy/space/    the live demo: its Hugging Face card and deploy script (see Dockerfile)
+deploy/self-host/  keeps a self-hosted API in step with main (see Dockerfile)
 ```

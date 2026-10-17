@@ -1,6 +1,6 @@
 # SiteScore in one container: the FastAPI app serving the built frontend, on the committed
-# demo pack (real data, no downloads). This is what the live demo runs on Hugging Face
-# Spaces (see .github/workflows/deploy-demo.yml), and it runs anywhere else too:
+# demo pack (real data, no downloads). The live site's API runs this on Joy's server
+# (deploy/self-host/update.sh keeps it in step with main), and it runs anywhere else too:
 #
 #   docker build -t sitescore . && docker run -p 7860:7860 sitescore
 #
