@@ -1129,8 +1129,8 @@ td.is-neg { color: var(--neg); }
 .finder__notes { margin: 4px 0 0; padding-left: 16px; display: flex; flex-direction: column; gap: 4px; }
 .spot-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .spot {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: start;
-  padding: 10px; border: 1px solid var(--border); border-radius: 12px;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0 10px; align-items: start;
+  padding: 10px 12px 4px; border: 1px solid var(--border); border-radius: 12px;
 }
 .spot.is-active { border-color: var(--text-primary); }
 .spot__letter {
@@ -1138,15 +1138,19 @@ td.is-neg { color: var(--neg); }
   background: var(--surface); color: var(--text-primary);
 }
 .spot.is-active .spot__letter { background: var(--ink); color: var(--ink-text); border-color: var(--ink); }
-.spot__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 12.5px; }
-.spot__title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; }
-.spot__title strong { overflow-wrap: anywhere; }
+.spot__title { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; padding-top: 3px; font-size: 13px; line-height: 1.3; }
+.spot__title strong { font-weight: 600; overflow-wrap: anywhere; }
 .spot__title .tag { margin-left: 0; }
-.spot__stats { margin: 6px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
-.spot__stats div { display: flex; flex-direction: column; min-width: 0; }
-.spot__stats dt { font: 10.5px/1.3 var(--mono); color: var(--text-muted); }
-.spot__stats dd { margin: 0; font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.spot__stat--main dd { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.spot__add { padding: 5px 10px; font-size: 12.5px; }
+/* A 2 × 2 of ruled cells across the whole card: the headline figure and its range, then risk and rent. */
+.spot__stats { grid-column: 1 / -1; margin: 10px 0 0; display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; border-top: 1px solid var(--border); }
+.spot__stats div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 7px 0 6px; }
+.spot__stats div:nth-child(n + 3) { border-top: 1px solid var(--border); }
+.spot__stats dt { font: 10.5px/1.3 var(--mono); color: var(--text-muted); white-space: nowrap; }
+.spot__stats dd { margin: 0; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spot__stat--main dd { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; }
+.spot__range { padding-top: 3px; color: var(--text-secondary); }
+.spot__stats dd.spot__range { white-space: normal; overflow: visible; } /* a long loss-to-profit range breaks at the dash */
 
 /* ---- Evidence (backtest) ------------------------------------------------------ */
 .bt-head { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px 24px; margin-bottom: 20px; }
